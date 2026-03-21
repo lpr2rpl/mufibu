@@ -1,0 +1,140 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          mufibu-backend
+# Required-Start:    $remote_fs $syslog postgresql
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: MuFiBu financial accounting backend (Gunicorn/Uvicorn)
+# Description:       Starts and stops the MuFiBu Python FastAPI backend
+#                    served by Gunicorn with UvicornWorker.
+### END INIT INFO
+
+# ---------------------------------------------------------------------------
+# SysVInit script for MuFiBu backend on Devuan (openrc / sysvinit)
+# ---------------------------------------------------------------------------
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+NAME=mufibu-backend
+DESC="MuFiBu Financial Accounting Backend"
+
+APP_DIR=/opt/mufibu/backend
+VENV_DIR=/opt/mufibu/venv
+GUNICORN=$VENV_DIR/bin/gunicorn
+APP_MODULE=app.main:app
+CONF_FILE=$APP_DIR/gunicorn.conf.py
+PID_DIR=/var/run/mufibu
+PID_FILE=$PID_DIR/backend.pid
+LOG_DIR=/var/log/mufibu
+RUN_USER=mufibu
+RUN_GROUP=mufibu
+
+# Source defaults if present
+[ -f /etc/default/mufibu ] && . /etc/default/mufibu
+
+# Ensure directories exist
+mkdir -p "$PID_DIR" "$LOG_DIR"
+chown "$RUN_USER:$RUN_GROUP" "$PID_DIR" "$LOG_DIR" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+do_start() {
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
+        echo "$DESC is already running (PID $(cat $PID_FILE))."
+        return 1
+    fi
+
+    echo "Starting $DESC ..."
+    cd "$APP_DIR" || exit 1
+
+    # Activate virtualenv and start gunicorn as mufibu user
+    start-stop-daemon --start \
+        --quiet \
+        --oknodo \
+        --background \
+        --chuid "$RUN_USER:$RUN_GROUP" \
+        --exec "$GUNICORN" \
+        -- \
+        --config "$CONF_FILE" \
+        "$APP_MODULE"
+
+    # Wait briefly and check
+    sleep 2
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
+        echo "$DESC started (PID $(cat $PID_FILE))."
+    else
+        echo "WARNING: $DESC may not have started correctly. Check $LOG_DIR/backend-error.log"
+        return 1
+    fi
+}
+
+do_stop() {
+    if [ ! -f "$PID_FILE" ]; then
+        echo "$DESC is not running."
+        return 0
+    fi
+
+    PID=$(cat "$PID_FILE")
+    echo "Stopping $DESC (PID $PID) ..."
+
+    start-stop-daemon --stop \
+        --quiet \
+        --oknodo \
+        --pidfile "$PID_FILE" \
+        --retry TERM/30/KILL/5
+
+    rm -f "$PID_FILE"
+    echo "$DESC stopped."
+}
+
+do_reload() {
+    if [ ! -f "$PID_FILE" ]; then
+        echo "$DESC is not running; cannot reload."
+        return 1
+    fi
+    echo "Reloading $DESC workers (HUP) ..."
+    kill -HUP "$(cat $PID_FILE)"
+    echo "Reload signal sent."
+}
+
+do_status() {
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
+        echo "$DESC is running (PID $(cat $PID_FILE))."
+        return 0
+    else
+        echo "$DESC is not running."
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+case "$1" in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    restart|force-reload)
+        do_stop
+        sleep 1
+        do_start
+        ;;
+    reload)
+        do_reload
+        ;;
+    status)
+        do_status
+        ;;
+    *)
+        echo "Usage: /etc/init.d/$NAME {start|stop|restart|reload|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
