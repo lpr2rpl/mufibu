@@ -1,6 +1,14 @@
 """
 Audit log endpoint.
-Auditor and PowerAdmin can read audit log.
+
+Read access:
+  Auditor    : all entries (no tenant filter enforced)
+  PowerAdmin : all entries (oversight of tenant management)
+  Officer    : entries for their assigned readable tenants only
+               (tenant_id IS NOT NULL AND tenant_id in readable_tenant_ids)
+
+The DB-level RLS policy enforces the same rules at the PostgreSQL layer so
+even if the application layer is bypassed the data remains protected.
 """
 import uuid
 from typing import List, Optional
@@ -27,13 +35,45 @@ def list_audit_log(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not (current.is_auditor() or current.is_power_admin()):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Auditor or PowerAdmin role required")
+    # Determine access level:
+    #   Auditor / PowerAdmin : unrestricted read
+    #   Officer              : restricted to their readable tenants
+    #                         (must supply tenant_id parameter)
+    #   Others               : denied
+    is_global_reader = current.is_auditor() or current.is_power_admin()
+
+    # Check if user is an Officer for at least one tenant
+    officer_tenant_ids = [
+        r.get("tenant_id")
+        for r in current._roles
+        if r.get("role") == "Officer" and r.get("tenant_id")
+    ]
+    is_officer = bool(officer_tenant_ids)
+
+    if not is_global_reader and not is_officer:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Auditor, PowerAdmin, or Officer role required",
+        )
 
     q = db.query(AuditLog)
 
-    if tenant_id:
-        q = q.filter(AuditLog.tenant_id == tenant_id)
+    if not is_global_reader:
+        # Officer: must filter by tenant; if no tenant_id param, scope to their tenants
+        if tenant_id:
+            # Verify they are Officer for this specific tenant
+            if str(tenant_id) not in officer_tenant_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have Officer access for this tenant",
+                )
+            q = q.filter(AuditLog.tenant_id == tenant_id)
+        else:
+            q = q.filter(AuditLog.tenant_id.in_(officer_tenant_ids))
+    else:
+        if tenant_id:
+            q = q.filter(AuditLog.tenant_id == tenant_id)
+
     if user_id:
         q = q.filter(AuditLog.user_id == user_id)
     if action:

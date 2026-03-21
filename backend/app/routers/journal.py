@@ -6,8 +6,9 @@ Permission matrix:
   Writer     : GET + POST + PATCH own entries (status=draft only)
   PowerUser  : GET + POST + PATCH any entry (status=draft/pending_approval)
   Approver   : POST /approve or /reject on pending_approval entries
-  Admin      : no booking access
-  Auditor    : GET all (across tenants)
+  Officer    : GET only (read-only for assigned tenants)
+  Admin      : no booking access at all
+  Auditor    : GET all (across tenants, no tenant filter enforced)
   PowerAdmin : no booking access
 """
 import uuid
@@ -29,7 +30,11 @@ router = APIRouter(prefix="/tenants/{tenant_id}/journal", tags=["journal"])
 
 
 def _require_read(current: CurrentUser, tenant_id: uuid.UUID):
-    if not (current.is_reader(tenant_id) or current.is_auditor()):
+    """
+    Read access: Reader, Writer, PowerUser, Approver, Officer (is_reader covers
+    all of these + Auditor).  Admin and PowerAdmin are explicitly excluded.
+    """
+    if not current.is_reader(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read access denied")
 
 
@@ -47,7 +52,7 @@ def _get_entry(db: Session, tenant_id: uuid.UUID, entry_id: uuid.UUID) -> Journa
 def _next_entry_number(db: Session, tenant_id: uuid.UUID) -> str:
     """Generate sequential entry number per tenant: YYYYNNNNN."""
     year = datetime.now(timezone.utc).year
-    prefix = f"{year}"
+    prefix = str(year)
     last = (
         db.query(JournalEntry)
         .filter(
@@ -57,10 +62,7 @@ def _next_entry_number(db: Session, tenant_id: uuid.UUID) -> str:
         .order_by(JournalEntry.entry_number.desc())
         .first()
     )
-    if last:
-        seq = int(last.entry_number[4:]) + 1
-    else:
-        seq = 1
+    seq = int(last.entry_number[4:]) + 1 if last else 1
     return f"{prefix}{seq:05d}"
 
 
@@ -99,7 +101,6 @@ def create_entry(
     if not current.is_writer(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Writer role required")
 
-    # Validate accounts belong to this tenant
     for acc_id in (body.main_account_id, body.contra_account_id):
         acc = db.query(Account).filter(
             Account.id == acc_id,
@@ -134,7 +135,6 @@ def create_entry(
     db.add(entry)
     db.flush()
 
-    # Extra lines
     if body.lines:
         for line_data in body.lines:
             acc = db.query(Account).filter(
@@ -194,14 +194,11 @@ def update_entry(
 ):
     entry = _get_entry(db, tenant_id, entry_id)
 
-    # Only draft entries may be modified
-    if entry.status not in ("draft",):
+    if entry.status != "draft":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Only draft entries can be modified",
         )
-
-    # Writer can only modify own entries; PowerUser can modify any
     if entry.created_by != current.id and not current.is_power_user(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="You can only modify your own entries (or be a PowerUser)")
@@ -211,7 +208,6 @@ def update_entry(
         "description": entry.description,
         "amount": str(entry.amount),
     }
-
     if body.entry_date is not None:
         entry.entry_date = body.entry_date
     if body.description is not None:
@@ -251,7 +247,7 @@ def submit_for_approval(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Move a draft entry to pending_approval."""
+    """Move a draft entry to pending_approval (triggers four-eyes workflow)."""
     entry = _get_entry(db, tenant_id, entry_id)
     if not current.is_writer(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Writer role required")
@@ -287,8 +283,6 @@ def approve_entry(
     entry = _get_entry(db, tenant_id, entry_id)
     if entry.status != "pending_approval":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Entry is not pending approval")
-
-    # Four-eyes: approver must not be the creator
     if entry.created_by == current.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -349,7 +343,7 @@ def post_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Post an approved entry (finalise it). Requires PowerUser."""
+    """Post an approved entry (finalise). Requires PowerUser."""
     if not current.is_power_user(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerUser role required")
     entry = _get_entry(db, tenant_id, entry_id)
@@ -357,9 +351,8 @@ def post_entry(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Only approved or draft entries can be posted")
 
-    now = datetime.now(timezone.utc)
     entry.status = "posted"
-    entry.posted_at = now
+    entry.posted_at = datetime.now(timezone.utc)
     entry.posted_by = current.id
 
     db.add(AuditLog(
@@ -382,8 +375,6 @@ def soft_delete_entry(
     entry = _get_entry(db, tenant_id, entry_id)
     if entry.status == "posted":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Posted entries cannot be deleted")
-
-    # Writer can only delete own drafts; PowerUser can delete any non-posted
     if entry.created_by != current.id and not current.is_power_user(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 

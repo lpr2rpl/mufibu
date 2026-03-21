@@ -47,13 +47,15 @@ export default function Layout({ children }) {
 
   const handleLogout = async () => { await logout(); navigate('/login'); };
 
+  const isOfficer = roles.some(r => r.role === 'Officer');
+
   const nav = [
     { to: '/dashboard', label: 'Dashboard' },
     activeTenant && { to: `/journal/${activeTenant}`, label: 'Journal Entries' },
     activeTenant && { to: `/accounts/${activeTenant}`, label: 'Chart of Accounts' },
     (isPowerAdmin() || roles.some(r => r.role === 'Admin')) && { to: '/users', label: 'Users & Roles' },
     isPowerAdmin() && { to: '/tenants', label: 'Tenants' },
-    isAuditor() && { to: '/audit', label: 'Audit Log' },
+    (isAuditor() || isPowerAdmin() || isOfficer) && { to: '/audit', label: 'Audit Log' },
   ].filter(Boolean);
 
   return (

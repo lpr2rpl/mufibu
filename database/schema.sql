@@ -80,6 +80,7 @@ INSERT INTO roles (name, scope, description) VALUES
     ('PowerUser', 'tenant', 'Writer + modify all bookings of the tenant'),
     ('Approver',  'tenant', 'Approve bookings that require four-eyes principle; no other write access'),
     ('Admin',     'tenant', 'Manage user-role assignments for the tenant; no booking read/write'),
+    ('Officer',   'tenant', 'Read-only access for assigned tenants; assigned per-tenant by PowerAdmin'),
     ('Auditor',   'global', 'Read all data across all tenants; no write access'),
     ('PowerAdmin','global', 'Create tenants and manage tenant Admins; no booking read/write');
 

@@ -1,5 +1,11 @@
 """
 Authentication endpoints: login, refresh, logout.
+
+The login and refresh endpoints operate WITHOUT an authenticated user context
+(that is the whole point - we are establishing one).  Before querying the
+users table we activate the BYPASS_CONTEXT so that the RLS policies do not
+block the lookup.  The bypass is cleared and replaced with the proper user
+context immediately after the password is verified.
 """
 from datetime import datetime, timezone
 
@@ -12,6 +18,7 @@ from app.auth.dependencies import build_roles_payload, get_current_user, Current
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.database import get_db
 from app.models import AuditLog, User
+from app.rls import BYPASS_CONTEXT, build_rls_context, set_rls_context
 from app.schemas import LoginRequest, RefreshRequest, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,6 +40,11 @@ def _audit(db: Session, user: User, action: str, request: Request, notes: str = 
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    # Activate bypass so the RLS after_begin event allows the user lookup.
+    # The bypass is intentional here: we need to find the user BEFORE we can
+    # build a proper RLS context (chicken-and-egg at authentication time).
+    set_rls_context(BYPASS_CONTEXT)
+
     user = db.query(User).filter(
         (User.username == body.username) | (User.email == body.username),
         User.deleted_at.is_(None),
@@ -46,7 +58,10 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
+    # Build proper RLS context now that we know the user
     roles = build_roles_payload(user, db)
+    set_rls_context(build_rls_context(str(user.id), roles))
+
     token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
 
     _audit(db, user, "LOGIN", request)
@@ -68,6 +83,9 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not a refresh token")
 
+    # Bypass for the user lookup (same reason as login)
+    set_rls_context(BYPASS_CONTEXT)
+
     user = db.query(User).filter(
         User.id == payload["sub"],
         User.is_active == True,
@@ -77,6 +95,8 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     roles = build_roles_payload(user, db)
+    set_rls_context(build_rls_context(str(user.id), roles))
+
     token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
 
     return TokenResponse(

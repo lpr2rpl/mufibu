@@ -127,12 +127,19 @@ su -s /bin/sh postgres -c "
 
 ok "PostgreSQL database and user ready."
 
-# Apply schema
+# Apply base schema
 info "Applying database schema ..."
 PGPASSWORD="${DB_PASS}" psql \
     -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" \
     -f "${APP_DIR}/database/schema.sql" 2>/dev/null || true
 ok "Schema applied (errors above may be safe if schema already exists)."
+
+# Apply RLS + Officer migration (idempotent - safe to run multiple times)
+info "Applying migration 002: RLS policies and Officer role ..."
+PGPASSWORD="${DB_PASS}" psql \
+    -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" \
+    -f "${APP_DIR}/database/migrations/002_rls_officer.sql"
+ok "Migration 002 applied."
 
 # ---------------------------------------------------------------------------
 # 4. Application user

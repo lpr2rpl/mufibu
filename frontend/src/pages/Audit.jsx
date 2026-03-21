@@ -17,7 +17,10 @@ const ACTION_COLORS = {
 };
 
 export default function Audit() {
-  const { isAuditor, isPowerAdmin } = useAuth();
+  const { isAuditor, isPowerAdmin, roles } = useAuth();
+  // Officers can read audit log for their assigned tenants
+  const officerTenantIds = roles.filter(r => r.role === 'Officer').map(r => r.tenant_id).filter(Boolean);
+  const isOfficer = officerTenantIds.length > 0;
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,8 +43,8 @@ export default function Audit() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (!isAuditor() && !isPowerAdmin()) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Access denied.</div>;
+  if (!isAuditor() && !isPowerAdmin() && !isOfficer) {
+    return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Access denied. Auditor, PowerAdmin, or Officer role required.</div>;
   }
 
   const ACTIONS = ['INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE', 'TENANT_CREATE', 'PHASE_EXTEND'];

@@ -1,13 +1,15 @@
 """
 Role assignment management.
 
-Rules:
-- PowerAdmin can assign/revoke global roles (Auditor, PowerAdmin).
-- PowerAdmin can assign/revoke Admin role for any tenant.
-- Tenant Admin can assign/revoke tenant-scoped roles (Reader/Writer/PowerUser/Approver)
-  for their own tenant.
-- Any authorised user can list their own assignments.
+Assignment rules:
+- PowerAdmin can assign/revoke ALL roles (global and tenant-scoped).
+- PowerAdmin is the ONLY one who can assign/revoke the Admin and Officer roles.
+  (Officer is PowerAdmin-assigned per-tenant to implement the tenant map.)
+- Tenant Admin can assign/revoke Reader, Writer, PowerUser, Approver for their
+  own tenant.
 - Phase extension: assigned_by or PowerAdmin/Admin may extend valid_until.
+- When a phase expires, create a new assignment record (old record is kept for
+  audit trail).
 """
 import uuid
 from datetime import datetime, timezone
@@ -25,6 +27,9 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/roles", tags=["roles"])
+
+# Roles that only PowerAdmin may assign or revoke.
+_POWER_ADMIN_ONLY_ROLES = {"Admin", "Officer"}
 
 
 # ------------------------------------------------------------------
@@ -52,10 +57,9 @@ def list_assignments(
 ):
     q = db.query(UserRoleAssignment).filter(UserRoleAssignment.deleted_at.is_(None))
 
-    # Restrict visibility
+    # Restrict visibility: PowerAdmin/Auditor see all; Admin sees their tenant;
+    # others see only their own assignments.
     if not (current.is_power_admin() or current.is_auditor()):
-        # Tenant Admin may see assignments for their tenant
-        # Others see only their own
         if tenant_id and current.is_admin(tenant_id):
             q = q.filter(UserRoleAssignment.tenant_id == tenant_id)
         else:
@@ -78,9 +82,9 @@ def list_assignments(
 
     result = []
     for a in assignments:
-        role = db.query(Role).filter(Role.id == a.role_id).first()
+        role   = db.query(Role).filter(Role.id == a.role_id).first()
         tenant = db.query(Tenant).filter(Tenant.id == a.tenant_id).first() if a.tenant_id else None
-        user = db.query(User).filter(User.id == a.user_id).first()
+        user   = db.query(User).filter(User.id == a.user_id).first()
         result.append(RoleAssignmentOut(
             id=a.id,
             user_id=a.user_id,
@@ -108,29 +112,42 @@ def assign_role(
     if not role:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Role '{body.role_name}' not found")
 
-    # Permission check
+    # ---------- permission matrix ----------
     if role.scope == "global":
+        # Global roles (Auditor, PowerAdmin) require PowerAdmin
         if not current.is_power_admin():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerAdmin required for global roles")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="PowerAdmin role required for global roles")
         if body.tenant_id is not None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="Global roles must not have a tenant_id")
-    else:  # tenant scope
+
+    else:  # tenant-scoped role
         if body.tenant_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="tenant_id is required for tenant-scoped roles")
-        # Admin role itself can only be assigned by PowerAdmin
-        if role.name == "Admin":
-            if not current.is_power_admin():
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="Only PowerAdmin can assign the Admin role")
-        else:
-            if not (current.is_power_admin() or current.is_admin(body.tenant_id)):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="Tenant Admin or PowerAdmin required")
 
-    # Target user exists?
-    target_user = db.query(User).filter(User.id == body.user_id, User.deleted_at.is_(None)).first()
+        if role.name in _POWER_ADMIN_ONLY_ROLES:
+            # Admin and Officer can only be assigned by PowerAdmin.
+            # Officer implements the "tenant map": PowerAdmin selects which
+            # tenants an Officer user gets read access to.
+            if not current.is_power_admin():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Only PowerAdmin can assign the {role.name} role",
+                )
+        else:
+            # Reader, Writer, PowerUser, Approver: Admin of that tenant or PowerAdmin
+            if not (current.is_power_admin() or current.is_admin(body.tenant_id)):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Tenant Admin or PowerAdmin role required",
+                )
+
+    # Target user must exist
+    target_user = db.query(User).filter(
+        User.id == body.user_id, User.deleted_at.is_(None)
+    ).first()
     if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
 
@@ -193,18 +210,25 @@ def extend_assignment(
 
     role = db.query(Role).filter(Role.id == ura.role_id).first()
 
-    # Permission: PowerAdmin for all, Admin for own tenant, or the original assigner
-    if not (
+    # Permission: PowerAdmin for all; Admin for their tenant (except Admin/Officer);
+    # the original assigner may also extend their own assignment.
+    if role and role.name in _POWER_ADMIN_ONLY_ROLES:
+        if not current.is_power_admin():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"Only PowerAdmin can extend the {role.name} role")
+    elif not (
         current.is_power_admin()
         or (ura.tenant_id and current.is_admin(ura.tenant_id))
         or current.id == ura.assigned_by
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions to extend")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Insufficient permissions to extend this assignment")
 
-    if body.valid_until <= (ura.valid_until or datetime.now(timezone.utc)):
+    current_until = ura.valid_until or datetime.now(timezone.utc)
+    if body.valid_until <= current_until:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New valid_until must be later than current valid_until",
+            detail="New valid_until must be later than the current valid_until",
         )
 
     ura.previous_valid_until = ura.valid_until
@@ -257,16 +281,22 @@ def revoke_assignment(
 
     role = db.query(Role).filter(Role.id == ura.role_id).first()
 
+    # Global roles: PowerAdmin only
     if role and role.scope == "global":
         if not current.is_power_admin():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerAdmin required")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="PowerAdmin role required to revoke global roles")
+    # Tenant roles: Admin/Officer require PowerAdmin; others allow tenant Admin
+    elif role and role.name in _POWER_ADMIN_ONLY_ROLES:
+        if not current.is_power_admin():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only PowerAdmin can revoke the {role.name} role",
+            )
     else:
-        if role and role.name == "Admin":
-            if not current.is_power_admin():
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="Only PowerAdmin can revoke Admin role")
-        elif not (current.is_power_admin() or (ura.tenant_id and current.is_admin(ura.tenant_id))):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        if not (current.is_power_admin() or (ura.tenant_id and current.is_admin(ura.tenant_id))):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Tenant Admin or PowerAdmin role required")
 
     now = datetime.now(timezone.utc)
     ura.is_active = False

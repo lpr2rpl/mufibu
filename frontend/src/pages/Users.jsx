@@ -105,9 +105,13 @@ export default function Users() {
     } catch (e) { alert(e.response?.data?.detail || 'Failed to extend'); }
   };
 
+  // PowerAdmin can assign all roles (including Admin and Officer).
+  // Tenant Admin can assign Reader/Writer/PowerUser/Approver for their tenant.
+  // Officer is PowerAdmin-only: it implements the per-tenant read map.
+  const POWER_ADMIN_ONLY_ROLES = ['Admin', 'Officer'];
   const availableRoles = allRoles.filter(r => {
     if (isPowerAdmin()) return true;
-    if (isAdmin) return r.scope === 'tenant' && r.name !== 'Admin';
+    if (isAdmin) return r.scope === 'tenant' && !POWER_ADMIN_ONLY_ROLES.includes(r.name);
     return false;
   });
 

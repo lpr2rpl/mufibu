@@ -1,7 +1,13 @@
 """
 Chart of accounts management.
-Reader/Writer/PowerUser/Approver can list accounts.
-PowerUser and Admin can create/update accounts.
+
+Read access:  Reader, Writer, PowerUser, Approver, Officer, Admin (tenant),
+              Auditor (global), PowerAdmin (global).
+Write access: PowerUser, Admin (tenant), PowerAdmin (global).
+
+Note: Admin requires read access to the account list for the role-management
+UI (account selection in journal entries) even though they cannot access
+journal entries themselves.  The DB-level RLS policy for accounts mirrors this.
 """
 import uuid
 from datetime import datetime, timezone
@@ -19,8 +25,15 @@ router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
 
 
 def _require_read(current: CurrentUser, tenant_id: uuid.UUID):
-    if not (current.is_reader(tenant_id) or current.is_admin(tenant_id)
-            or current.is_auditor() or current.is_power_admin()):
+    """
+    Reader-class + Officer + Admin + Auditor + PowerAdmin may read accounts.
+    Officer is included because they need account names for journal entry display.
+    """
+    if not (
+        current.is_reader(tenant_id)        # Reader/Writer/PowerUser/Approver/Officer + Auditor
+        or current.is_admin(tenant_id)       # Admin (role management UI)
+        or current.is_power_admin()
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
 
