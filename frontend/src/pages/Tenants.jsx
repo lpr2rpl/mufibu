@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getTenants, createTenant } from '../api/client';
+import Badge from '../components/Badge';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
 
 const S = {
   card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
@@ -27,9 +31,9 @@ function Modal({ title, onClose, children }) {
 
 export default function Tenants() {
   const { isPowerAdmin } = useAuth();
+  const toast = useToast();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
 
@@ -38,7 +42,9 @@ export default function Tenants() {
     try {
       const { data } = await getTenants();
       setTenants(data);
-    } catch (e) { setError(e.response?.data?.detail || 'Failed to load tenants'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to load tenants');
+    }
     setLoading(false);
   }, []);
 
@@ -46,13 +52,15 @@ export default function Tenants() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    setError('');
     try {
       await createTenant(form);
+      toast.success(`Tenant "${form.name}" created.`);
       setShowForm(false);
       setForm({ name: '', description: '' });
       load();
-    } catch (e) { setError(e.response?.data?.detail || 'Failed to create tenant'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to create tenant');
+    }
   };
 
   if (!isPowerAdmin()) {
@@ -62,33 +70,25 @@ export default function Tenants() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ color: '#1a237e' }}>Tenant Management</h2>
+        <h2 style={{ color: '#1a237e', margin: 0 }}>Tenant Management</h2>
         <button style={S.btn()} onClick={() => setShowForm(true)}>+ New Tenant</button>
       </div>
-      {error && <div style={{ background: '#ffebee', color: '#c62828', padding: 12, borderRadius: 6, marginBottom: 16 }}>{error}</div>}
       <div style={S.card}>
-        {loading ? <div>Loading...</div> : (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        ) : tenants.length === 0 ? (
+          <EmptyState message="No tenants yet." />
+        ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
               {['Name', 'Description', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {tenants.length === 0 && (
-                <tr><td colSpan={4} style={{ ...S.td, textAlign: 'center', color: '#999', padding: 24 }}>No tenants yet</td></tr>
-              )}
               {tenants.map(t => (
                 <tr key={t.id}>
                   <td style={{ ...S.td, fontWeight: 600 }}>{t.name}</td>
-                  <td style={{ ...S.td, color: '#666' }}>{t.description || '-'}</td>
-                  <td style={S.td}>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 12, fontSize: 12,
-                      background: t.is_active ? '#e8f5e9' : '#ffebee',
-                      color: t.is_active ? '#2e7d32' : '#c62828',
-                    }}>
-                      {t.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
+                  <td style={{ ...S.td, color: '#666' }}>{t.description || '—'}</td>
+                  <td style={S.td}><Badge label={t.is_active ? 'Active' : 'Inactive'} variant={t.is_active ? 'active' : 'inactive'} /></td>
                   <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(t.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
@@ -99,7 +99,6 @@ export default function Tenants() {
 
       {showForm && (
         <Modal title="New Tenant" onClose={() => setShowForm(false)}>
-          {error && <div style={{ background: '#ffebee', color: '#c62828', padding: 10, borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
           <form onSubmit={handleCreate}>
             <label style={S.label}>Tenant Name</label>
             <input style={S.input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />

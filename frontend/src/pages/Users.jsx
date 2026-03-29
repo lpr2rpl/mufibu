@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getUsers, createUser, getRoles, getAssignments, assignRole, revokeAssignment, extendAssignment, getTenants } from '../api/client';
+import Badge from '../components/Badge';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const S = {
   card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
@@ -31,7 +36,9 @@ function Modal({ title, onClose, children }) {
 
 export default function Users() {
   const { isPowerAdmin, roles: myRoles } = useAuth();
+  const toast = useToast();
   const [tab, setTab] = useState('users');
+  const [confirmRevoke, setConfirmRevoke] = useState(null);
   const [users, setUsers] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [allRoles, setAllRoles] = useState([]);
@@ -60,7 +67,9 @@ export default function Users() {
         const { data: t } = await getTenants();
         setTenants(t);
       }
-    } catch (e) { setError(e.response?.data?.detail || 'Failed to load'); }
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Failed to load');
+    }
     setLoading(false);
   }, [isPowerAdmin]);
 
@@ -71,6 +80,7 @@ export default function Users() {
     setError('');
     try {
       await createUser(userForm);
+      toast.success(`User "${userForm.username}" created.`);
       setShowUserForm(false);
       setUserForm({ username: '', email: '', password: '', full_name: '' });
       load();
@@ -86,23 +96,32 @@ export default function Users() {
         tenant_id: assignForm.tenant_id || null,
         valid_until: assignForm.valid_until || null,
       });
+      toast.success('Role assigned successfully.');
       setShowAssignForm(false);
       setAssignForm({ user_id: '', role_name: '', tenant_id: '', valid_until: '' });
       load();
     } catch (e) { setError(e.response?.data?.detail || 'Failed to assign role'); }
   };
 
-  const handleRevoke = async (id) => {
-    if (!window.confirm('Revoke this role assignment?')) return;
-    try { await revokeAssignment(id, {}); load(); }
-    catch (e) { alert(e.response?.data?.detail || 'Failed to revoke'); }
+  const handleRevoke = async () => {
+    try {
+      await revokeAssignment(confirmRevoke.id, {});
+      toast.success('Role assignment revoked.');
+      setConfirmRevoke(null);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to revoke');
+    }
   };
 
   const handleExtend = async () => {
     try {
       await extendAssignment(extendModal.id, { valid_until: newValidUntil });
+      toast.success('Assignment extended.');
       setExtendModal(null); setNewValidUntil(''); load();
-    } catch (e) { alert(e.response?.data?.detail || 'Failed to extend'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to extend');
+    }
   };
 
   // PowerAdmin can assign all roles (including Admin and Officer).
@@ -192,7 +211,7 @@ export default function Users() {
                             <button style={{ ...S.btn('#455a64'), padding: '3px 8px', fontSize: 12, marginRight: 4 }}
                               onClick={() => { setExtendModal(a); setNewValidUntil(''); }}>Extend</button>
                             <button style={{ ...S.btn('#c62828'), padding: '3px 8px', fontSize: 12 }}
-                              onClick={() => handleRevoke(a.id)}>Revoke</button>
+                              onClick={() => setConfirmRevoke(a)}>Revoke</button>
                           </>
                         )}
                       </td>
@@ -274,6 +293,15 @@ export default function Users() {
             <button onClick={handleExtend} style={S.btn()}>Extend Phase</button>
           </div>
         </Modal>
+      )}
+
+      {confirmRevoke && (
+        <ConfirmDialog
+          message={`Revoke the ${confirmRevoke.role_name} role from ${confirmRevoke.username}?`}
+          danger
+          onConfirm={handleRevoke}
+          onCancel={() => setConfirmRevoke(null)}
+        />
       )}
     </div>
   );

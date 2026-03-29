@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getAuditLog } from '../api/client';
+import Badge from '../components/Badge';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
+import Pagination from '../components/Pagination';
 
 const S = {
   card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
@@ -16,28 +21,30 @@ const ACTION_COLORS = {
   TENANT_CREATE: '#e8f5e9', PHASE_EXTEND: '#e3f2fd',
 };
 
+const LIMIT = 50;
+
 export default function Audit() {
   const { isAuditor, isPowerAdmin, roles } = useAuth();
-  // Officers can read audit log for their assigned tenants
+  const toast = useToast();
   const officerTenantIds = roles.filter(r => r.role === 'Officer').map(r => r.tenant_id).filter(Boolean);
   const isOfficer = officerTenantIds.length > 0;
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [action, setAction] = useState('');
   const [table, setTable] = useState('');
   const [page, setPage] = useState(0);
-  const limit = 50;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { skip: page * limit, limit };
+      const params = { skip: page * LIMIT, limit: LIMIT };
       if (action) params.action = action;
       if (table) params.table_name = table;
       const { data } = await getAuditLog(params);
       setEntries(data);
-    } catch (e) { setError(e.response?.data?.detail || 'Failed to load audit log'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to load audit log');
+    }
     setLoading(false);
   }, [action, table, page]);
 
@@ -68,56 +75,48 @@ export default function Audit() {
         </button>
       </div>
 
-      {error && <div style={{ background: '#ffebee', color: '#c62828', padding: 12, borderRadius: 6, marginBottom: 16 }}>{error}</div>}
-
       <div style={S.card}>
-        {loading ? <div>Loading...</div> : (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        ) : (
           <>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>
-                {['Timestamp', 'Action', 'Table', 'Record', 'User', 'Tenant', 'Notes'].map(h => (
-                  <th key={h} style={S.th}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {entries.length === 0 && (
-                  <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#999', padding: 24 }}>No audit entries</td></tr>
-                )}
-                {entries.map(e => (
-                  <tr key={e.id}>
-                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
-                      {new Date(e.occurred_at).toLocaleString()}
-                    </td>
-                    <td style={S.td}>
-                      <span style={{
-                        padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                        background: ACTION_COLORS[e.action] || '#f5f5f5',
-                      }}>{e.action}</span>
-                    </td>
-                    <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.table_name || '-'}</td>
-                    <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: '#888' }}>
-                      {e.record_id ? e.record_id.slice(0, 8) + '...' : '-'}
-                    </td>
-                    <td style={{ ...S.td, fontSize: 12 }}>{e.user_id ? e.user_id.slice(0, 8) + '...' : '-'}</td>
-                    <td style={{ ...S.td, fontSize: 12 }}>{e.tenant_id ? e.tenant_id.slice(0, 8) + '...' : '-'}</td>
-                    <td style={{ ...S.td, fontSize: 12, color: '#666', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {e.notes || (e.new_values ? JSON.stringify(e.new_values).slice(0, 60) : '-')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid #eee' }}>
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', background: '#fff' }}>
-                Previous
-              </button>
-              <span style={{ fontSize: 13, color: '#666' }}>Page {page + 1}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={entries.length < limit}
-                style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', background: '#fff' }}>
-                Next
-              </button>
-            </div>
+            {entries.length === 0 ? (
+              <EmptyState message="No audit entries match the current filters." />
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr>
+                  {['Timestamp', 'Action', 'Table', 'Record', 'User', 'Tenant', 'Notes'].map(h => (
+                    <th key={h} style={S.th}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {entries.map(e => (
+                    <tr key={e.id}>
+                      <td style={{ ...S.td, whiteSpace: 'nowrap', fontSize: 12 }}>
+                        {new Date(e.occurred_at).toLocaleString()}
+                      </td>
+                      <td style={S.td}>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                          background: ACTION_COLORS[e.action] || '#f5f5f5',
+                        }}>{e.action}</span>
+                      </td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.table_name || '—'}</td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: '#888' }}>
+                        {e.record_id ? e.record_id.slice(0, 8) + '…' : '—'}
+                      </td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{e.user_id ? e.user_id.slice(0, 8) + '…' : '—'}</td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{e.tenant_id ? e.tenant_id.slice(0, 8) + '…' : '—'}</td>
+                      <td style={{ ...S.td, fontSize: 12, color: '#666', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={e.notes || (e.new_values ? JSON.stringify(e.new_values) : '')}>
+                        {e.notes || (e.new_values ? JSON.stringify(e.new_values).slice(0, 60) : '—')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <Pagination page={page} onPage={setPage} hasMore={entries.length === LIMIT} />
           </>
         )}
       </div>

@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getAccounts, createAccount, updateAccount } from '../api/client';
+import Badge from '../components/Badge';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
 
 const S = {
-  card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
-  th: { textAlign: 'left', padding: '10px 12px', color: '#666', borderBottom: '2px solid #eee', fontSize: 13 },
+  card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: 16 },
+  th: { textAlign: 'left', padding: '10px 12px', color: '#777', borderBottom: '2px solid #eee', fontSize: 12, fontWeight: 700 },
   td: { padding: '10px 12px', fontSize: 14, borderBottom: '1px solid #f5f5f5' },
   input: { width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 },
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 },
@@ -37,21 +41,24 @@ function Modal({ title, onClose, children }) {
 export default function Accounts() {
   const { tenantId } = useParams();
   const { hasTenantRole, isPowerAdmin } = useAuth();
+  const toast = useToast();
   const canWrite = hasTenantRole(tenantId, 'PowerUser', 'Admin') || isPowerAdmin();
 
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState(null);
-  const [form, setForm] = useState({ account_number: '', name: '', account_type: 'asset', description: '' });
+  const emptyForm = { account_number: '', name: '', account_type: 'asset', description: '' };
+  const [form, setForm] = useState(emptyForm);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await getAccounts(tenantId, { active_only: false });
       setAccounts(data);
-    } catch (e) { setError(e.response?.data?.detail || 'Failed to load accounts'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to load accounts');
+    }
     setLoading(false);
   }, [tenantId]);
 
@@ -59,17 +66,20 @@ export default function Accounts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     try {
       if (editAcct) {
         await updateAccount(tenantId, editAcct.id, { name: form.name, description: form.description });
+        toast.success('Account updated.');
       } else {
         await createAccount(tenantId, form);
+        toast.success('Account created.');
       }
       setShowForm(false); setEditAcct(null);
-      setForm({ account_number: '', name: '', account_type: 'asset', description: '' });
+      setForm(emptyForm);
       load();
-    } catch (e) { setError(e.response?.data?.detail || 'Operation failed'); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Operation failed');
+    }
   };
 
   const openEdit = (acct) => {
@@ -81,16 +91,19 @@ export default function Accounts() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ color: '#1a237e' }}>Chart of Accounts</h2>
+        <h2 style={{ color: '#1a237e', margin: 0 }}>Chart of Accounts</h2>
         {canWrite && (
-          <button style={S.btn()} onClick={() => { setEditAcct(null); setForm({ account_number: '', name: '', account_type: 'asset', description: '' }); setShowForm(true); }}>
+          <button style={S.btn()} onClick={() => { setEditAcct(null); setForm(emptyForm); setShowForm(true); }}>
             + New Account
           </button>
         )}
       </div>
-      {error && <div style={{ background: '#ffebee', color: '#c62828', padding: 12, borderRadius: 6, marginBottom: 16 }}>{error}</div>}
       <div style={S.card}>
-        {loading ? <div>Loading...</div> : (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        ) : accounts.length === 0 ? (
+          <EmptyState message="No accounts yet. Create your first account." />
+        ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -100,9 +113,6 @@ export default function Accounts() {
               </tr>
             </thead>
             <tbody>
-              {accounts.length === 0 && (
-                <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: '#999', padding: 24 }}>No accounts yet</td></tr>
-              )}
               {accounts.map(a => {
                 const [bg, color] = TYPE_COLORS[a.account_type] || ['#f5f5f5', '#555'];
                 return (
@@ -112,11 +122,9 @@ export default function Accounts() {
                     <td style={S.td}>
                       <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{a.account_type}</span>
                     </td>
-                    <td style={{ ...S.td, color: '#888', fontSize: 13 }}>{a.description || '-'}</td>
+                    <td style={{ ...S.td, color: '#888', fontSize: 13 }}>{a.description || '—'}</td>
                     <td style={S.td}>
-                      <span style={{ fontSize: 12, color: a.is_active ? '#2e7d32' : '#c62828' }}>
-                        {a.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />
                     </td>
                     {canWrite && (
                       <td style={S.td}>
@@ -133,7 +141,6 @@ export default function Accounts() {
 
       {showForm && (
         <Modal title={editAcct ? 'Edit Account' : 'New Account'} onClose={() => { setShowForm(false); setEditAcct(null); }}>
-          {error && <div style={{ background: '#ffebee', color: '#c62828', padding: 10, borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 12 }}>
               <label style={S.label}>Account Number</label>

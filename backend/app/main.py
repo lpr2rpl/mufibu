@@ -2,11 +2,14 @@
 MuFiBu - Multi-Tenant Financial Accounting System
 FastAPI application entry point.
 """
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from passlib.context import CryptContext
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -14,6 +17,8 @@ from app.database import Base, SessionLocal, engine
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.rls import BYPASS_CONTEXT, set_rls_context
 from app.routers import accounts, audit, auth, journal, roles, tenants, users
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -108,7 +113,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+
+# ---------------------------------------------------------------------------
+# Global exception handlers
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.warning("DB integrity error: %s", exc.orig)
+    detail = str(exc.orig) if settings.DEBUG else "A database constraint was violated."
+    return JSONResponse(status_code=409, content={"detail": detail})
+
+
+@app.exception_handler(OperationalError)
+async def operational_error_handler(request: Request, exc: OperationalError):
+    logger.error("DB operational error: %s", exc)
+    return JSONResponse(status_code=503, content={"detail": "Database temporarily unavailable."})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    if settings.DEBUG:
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
+    return JSONResponse(status_code=500, content={"detail": "An internal error occurred."})
+
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+
 app.include_router(auth.router,     prefix="/api/v1")
 app.include_router(tenants.router,  prefix="/api/v1")
 app.include_router(users.router,    prefix="/api/v1")
@@ -118,6 +152,25 @@ app.include_router(journal.router,  prefix="/api/v1")
 app.include_router(audit.router,    prefix="/api/v1")
 
 
-@app.get("/api/v1/health")
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/health", tags=["health"])
 def health():
+    """Basic liveness probe — returns OK without hitting the database."""
     return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
+
+@app.get("/api/v1/health/db", tags=["health"])
+def health_db():
+    """Readiness probe — verifies database connectivity."""
+    db = SessionLocal()
+    try:
+        db.execute(__import__("sqlalchemy").text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        logger.error("Health-DB probe failed: %s", exc)
+        return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
+    finally:
+        db.close()
