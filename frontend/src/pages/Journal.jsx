@@ -8,22 +8,16 @@ import {
 } from '../api/client';
 import Badge from '../components/Badge';
 import Spinner from '../components/Spinner';
-import { truncateId } from '../utils/roles';
 import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { truncateId } from '../utils/roles';
+import { apiError } from '../utils/apiError';
+import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = {
-  card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: 16 },
-  th: { textAlign: 'left', padding: '10px 12px', color: '#777', borderBottom: '2px solid #eee', fontSize: 12, fontWeight: 700 },
-  td: { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #f5f5f5' },
-  input: { width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 },
-  label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 },
-  btn: (color) => ({
-    padding: '7px 14px', background: color || '#1a237e', color: '#fff',
-    border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-  }),
+  card, th, td, input, label, btn,
   tab: (active) => ({
     padding: '7px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
     background: active ? '#1a237e' : '#f0f0f0',
@@ -31,8 +25,8 @@ const S = {
     borderRadius: 6, fontWeight: active ? 600 : 400,
   }),
   searchInput: {
-    padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14,
-    width: 220, outline: 'none',
+    padding: '7px 12px', border: '1px solid #ddd', borderRadius: 6,
+    fontSize: 14, width: 220, outline: 'none',
   },
 };
 
@@ -47,6 +41,11 @@ const STATUS_TABS = [
 
 const LIMIT = 25;
 
+const makeEmptyForm = () => ({
+  entry_date: new Date().toISOString().slice(0, 10),
+  description: '', main_account_id: '', contra_account_id: '',
+  amount: '', requires_approval: false, reference: '', notes: '',
+});
 
 export default function Journal() {
   const { tenantId } = useParams();
@@ -55,7 +54,6 @@ export default function Journal() {
 
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [rejectModal, setRejectModal] = useState(null);
@@ -65,21 +63,14 @@ export default function Journal() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState(makeEmptyForm);
 
   const searchTimer = useRef(null);
 
-  const emptyForm = {
-    entry_date: new Date().toISOString().slice(0, 10),
-    description: '', main_account_id: '', contra_account_id: '',
-    amount: '', requires_approval: false, reference: '', notes: '',
-  };
-  const [form, setForm] = useState(emptyForm);
-
-  // One-time fetch of the accounts list (chart of accounts doesn't change during a session)
   useEffect(() => {
     getAccounts(tenantId)
-      .then(({ data }) => { setAccounts(data); setAccountsLoaded(true); })
-      .catch(() => setAccountsLoaded(true));
+      .then(({ data }) => setAccounts(data))
+      .catch(() => {});
   }, [tenantId]);
 
   const load = useCallback(async () => {
@@ -91,7 +82,7 @@ export default function Journal() {
       const { data } = await getJournalEntries(tenantId, params);
       setEntries(data);
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to load entries');
+      toast.error(apiError(e, 'Failed to load entries'));
     }
     setLoading(false);
   }, [tenantId, filterStatus, search, page]);
@@ -105,11 +96,11 @@ export default function Journal() {
       await createJournalEntry(tenantId, { ...form, amount: parseFloat(form.amount) });
       toast.success('Journal entry created.');
       setShowForm(false);
-      setForm(emptyForm);
+      setForm(makeEmptyForm());
       setPage(0);
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to create entry');
+      toast.error(apiError(e, 'Failed to create entry'));
     }
     setSubmitting(false);
   };
@@ -120,7 +111,7 @@ export default function Journal() {
       toast.success('Entry submitted for approval.');
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to submit entry');
+      toast.error(apiError(e, 'Failed to submit entry'));
     }
   };
 
@@ -130,7 +121,7 @@ export default function Journal() {
       toast.success('Entry approved.');
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to approve');
+      toast.error(apiError(e, 'Failed to approve'));
     }
   };
 
@@ -142,7 +133,7 @@ export default function Journal() {
       setRejectReason('');
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to reject');
+      toast.error(apiError(e, 'Failed to reject'));
     }
   };
 
@@ -153,7 +144,7 @@ export default function Journal() {
       setConfirmPost(null);
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to post');
+      toast.error(apiError(e, 'Failed to post'));
     }
   };
 
@@ -171,7 +162,6 @@ export default function Journal() {
         )}
       </div>
 
-      {/* Filters row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           style={S.searchInput}
@@ -255,7 +245,6 @@ export default function Journal() {
         )}
       </div>
 
-      {/* Create form modal */}
       {showForm && (
         <Modal title="New Journal Entry" onClose={() => setShowForm(false)}>
           <form onSubmit={handleCreate}>
@@ -324,7 +313,6 @@ export default function Journal() {
         </Modal>
       )}
 
-      {/* Reject modal */}
       {rejectModal && (
         <Modal title="Reject Entry" onClose={() => setRejectModal(null)}>
           <p style={{ marginBottom: 12, fontSize: 14, color: '#555' }}>
@@ -336,14 +324,14 @@ export default function Journal() {
             placeholder="Provide a reason for rejection…" required />
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => setRejectModal(null)} style={S.btn('#888')}>Cancel</button>
-            <button onClick={handleReject} disabled={!rejectReason.trim()} style={{ ...S.btn('#c62828'), opacity: rejectReason.trim() ? 1 : 0.5 }}>
+            <button onClick={handleReject} disabled={!rejectReason.trim()}
+              style={{ ...S.btn('#c62828'), opacity: rejectReason.trim() ? 1 : 0.5 }}>
               Confirm Rejection
             </button>
           </div>
         </Modal>
       )}
 
-      {/* Post confirmation */}
       {confirmPost && (
         <ConfirmDialog
           message={`Post entry ${confirmPost.entry_number}? This action is final and cannot be undone.`}

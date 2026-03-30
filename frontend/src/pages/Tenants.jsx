@@ -6,16 +6,10 @@ import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import { apiError } from '../utils/apiError';
+import { card, th, td, input, label, btn } from '../styles/common';
 
-const S = {
-  card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
-  th: { textAlign: 'left', padding: '10px 12px', color: '#666', borderBottom: '2px solid #eee', fontSize: 13 },
-  td: { padding: '10px 12px', fontSize: 14, borderBottom: '1px solid #f5f5f5' },
-  input: { width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 },
-  label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4, marginTop: 10 },
-  btn: (c) => ({ padding: '7px 14px', background: c || '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }),
-};
-
+const S = { card, th, td, input, label, btn };
 
 export default function Tenants() {
   const { isPowerAdmin } = useAuth();
@@ -31,7 +25,7 @@ export default function Tenants() {
       const { data } = await getTenants();
       setTenants(data);
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to load tenants');
+      toast.error(apiError(e, 'Failed to load tenants'));
     }
     setLoading(false);
   }, []);
@@ -47,7 +41,7 @@ export default function Tenants() {
       setForm({ name: '', description: '' });
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to create tenant');
+      toast.error(apiError(e, 'Failed to create tenant'));
     }
   };
 
@@ -88,11 +82,15 @@ export default function Tenants() {
       {showForm && (
         <Modal title="New Tenant" onClose={() => setShowForm(false)}>
           <form onSubmit={handleCreate}>
-            <label style={S.label}>Tenant Name</label>
-            <input style={S.input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-            <label style={S.label}>Description</label>
-            <textarea style={{ ...S.input, height: 80, resize: 'vertical' }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 16 }}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={S.label}>Tenant Name</label>
+              <input style={S.input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={S.label}>Description</label>
+              <textarea style={{ ...S.input, height: 80, resize: 'vertical' }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setShowForm(false)} style={S.btn('#888')}>Cancel</button>
               <button type="submit" style={S.btn()}>Create Tenant</button>
             </div>

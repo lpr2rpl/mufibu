@@ -2,18 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getAuditLog } from '../api/client';
-import Badge from '../components/Badge';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import Pagination from '../components/Pagination';
 import { truncateId } from '../utils/roles';
+import { apiError } from '../utils/apiError';
+import { card, th, td, input, btn } from '../styles/common';
 
-const S = {
-  card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
-  th: { textAlign: 'left', padding: '10px 12px', color: '#666', borderBottom: '2px solid #eee', fontSize: 13 },
-  td: { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #f5f5f5' },
-  input: { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 },
-};
+const S = { card, th, td, input, btn };
 
 const ACTION_COLORS = {
   INSERT: '#e8f5e9', UPDATE: '#e3f2fd', SOFT_DELETE: '#ffebee',
@@ -23,12 +19,13 @@ const ACTION_COLORS = {
 };
 
 const LIMIT = 50;
+const ACTIONS = ['INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE', 'TENANT_CREATE', 'PHASE_EXTEND'];
+const TABLES  = ['users', 'tenants', 'user_role_assignments', 'accounts', 'journal_entries'];
 
 export default function Audit() {
   const { isAuditor, isPowerAdmin, roles } = useAuth();
   const toast = useToast();
-  const officerTenantIds = roles.filter(r => r.role === 'Officer').map(r => r.tenant_id).filter(Boolean);
-  const isOfficer = officerTenantIds.length > 0;
+  const isOfficer = roles.some(r => r.role === 'Officer');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('');
@@ -44,7 +41,7 @@ export default function Audit() {
       const { data } = await getAuditLog(params);
       setEntries(data);
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to load audit log');
+      toast.error(apiError(e, 'Failed to load audit log'));
     }
     setLoading(false);
   }, [action, table, page]);
@@ -55,25 +52,22 @@ export default function Audit() {
     return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Access denied. Auditor, PowerAdmin, or Officer role required.</div>;
   }
 
-  const ACTIONS = ['INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE', 'TENANT_CREATE', 'PHASE_EXTEND'];
-  const TABLES = ['users', 'tenants', 'user_role_assignments', 'accounts', 'journal_entries'];
-
   return (
     <div>
       <h2 style={{ color: '#1a237e', marginBottom: 20 }}>Audit Log</h2>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <select value={action} onChange={e => { setAction(e.target.value); setPage(0); }} style={S.input}>
+        <select value={action} onChange={e => { setAction(e.target.value); setPage(0); }}
+          style={{ ...S.input, width: 'auto' }}>
           <option value="">All actions</option>
           {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select value={table} onChange={e => { setTable(e.target.value); setPage(0); }} style={S.input}>
+        <select value={table} onChange={e => { setTable(e.target.value); setPage(0); }}
+          style={{ ...S.input, width: 'auto' }}>
           <option value="">All tables</option>
           {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <button onClick={() => load()} style={{ ...S.input, background: '#1a237e', color: '#fff', cursor: 'pointer', border: 'none' }}>
-          Refresh
-        </button>
+        <button onClick={load} style={S.btn()}>Refresh</button>
       </div>
 
       <div style={S.card}>

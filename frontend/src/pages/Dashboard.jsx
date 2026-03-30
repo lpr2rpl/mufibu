@@ -1,23 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getTenants, getJournalEntries } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
-import { getTenantIds } from '../utils/roles';
+import { getTenantIds, truncateId } from '../utils/roles';
+import { card, th, td } from '../styles/common';
 
 const S = {
-  card: {
-    background: '#fff', borderRadius: 8, padding: 20,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: 16,
-  },
+  card,
   statCard: (color) => ({
-    background: '#fff', borderRadius: 8, padding: '18px 20px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+    ...card, marginBottom: 0,
     borderLeft: `4px solid ${color}`,
   }),
-  th: { textAlign: 'left', padding: '8px 10px', color: '#888', fontSize: 12, borderBottom: '2px solid #eee' },
-  td: { padding: '9px 10px', fontSize: 13, borderBottom: '1px solid #f5f5f5' },
+  th,
+  td,
   quickLink: (color, bg) => ({
     display: 'inline-flex', alignItems: 'center', gap: 6,
     padding: '7px 14px', background: bg, color,
@@ -37,6 +35,7 @@ function StatCard({ label, value, color, sub }) {
 
 export default function Dashboard() {
   const { user, roles, isPowerAdmin, isAuditor } = useAuth();
+  const toast = useToast();
   const [tenants, setTenants] = useState([]);
   const [recentByTenant, setRecentByTenant] = useState({});
   const [loading, setLoading] = useState(true);
@@ -48,17 +47,21 @@ export default function Dashboard() {
       const promises = [];
 
       if (isPowerAdmin() || isAuditor()) {
-        promises.push(getTenants().then(({ data }) => setTenants(data)).catch(() => {}));
+        promises.push(
+          getTenants()
+            .then(({ data }) => setTenants(data))
+            .catch(() => toast.error('Failed to load tenants'))
+        );
       }
 
-      // Fetch recent entries for each tenant in parallel
-      const recentPromises = tenantIds.map(tid =>
-        getJournalEntries(tid, { limit: 5, skip: 0 })
-          .then(({ data }) => [tid, data])
-          .catch(() => [tid, []])
-      );
       promises.push(
-        Promise.all(recentPromises).then(results => {
+        Promise.all(
+          tenantIds.map(tid =>
+            getJournalEntries(tid, { limit: 5, skip: 0 })
+              .then(({ data }) => [tid, data])
+              .catch(() => [tid, []])
+          )
+        ).then(results => {
           const map = {};
           results.forEach(([tid, data]) => { map[tid] = data; });
           setRecentByTenant(map);
@@ -92,7 +95,6 @@ export default function Dashboard() {
         Here's an overview of your accounting workspace.
       </p>
 
-      {/* Stat row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
         <StatCard
           label="Active Roles"
@@ -107,19 +109,17 @@ export default function Dashboard() {
           <StatCard label="My Tenants" value={tenantIds.length} color="#f57c00" />
         )}
         {hasTenantAccess && (
-          <StatCard label="Recent Entries" value={totalRecent} color="#6a1b9a"
-            sub="Last 5 per tenant" />
+          <StatCard label="Recent Entries" value={totalRecent} color="#6a1b9a" sub="Last 5 per tenant" />
         )}
       </div>
 
-      {/* Quick access */}
       {hasTenantAccess && (
         <div style={S.card}>
           <h3 style={{ margin: '0 0 14px', fontSize: 15, color: '#333' }}>Quick Access</h3>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {tenantIds.map(tid => {
               const t = tenants.find(x => x.id === tid);
-              const label = t ? t.name : tid.slice(0, 8) + '…';
+              const label = t ? t.name : truncateId(tid);
               return (
                 <React.Fragment key={tid}>
                   <Link to={`/journal/${tid}`} style={S.quickLink('#1a237e', '#e8eaf6')}>
@@ -135,12 +135,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Recent journal entries per tenant */}
       {tenantIds.map(tid => {
         const entries = recentByTenant[tid] || [];
         if (!entries.length) return null;
         const t = tenants.find(x => x.id === tid);
-        const tName = t ? t.name : tid.slice(0, 8) + '…';
+        const tName = t ? t.name : truncateId(tid);
         return (
           <div key={tid} style={S.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -177,7 +176,6 @@ export default function Dashboard() {
         );
       })}
 
-      {/* All tenants table for admins */}
       {(isPowerAdmin() || isAuditor()) && tenants.length > 0 && (
         <div style={S.card}>
           <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#333' }}>All Tenants</h3>
