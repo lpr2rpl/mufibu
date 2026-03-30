@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getTenants, getJournalEntries } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
+import { getTenantIds } from '../utils/roles';
 
 const S = {
   card: {
@@ -40,8 +41,7 @@ export default function Dashboard() {
   const [recentByTenant, setRecentByTenant] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const tenantRoles = roles.filter(r => r.scope === 'tenant');
-  const tenantIds = [...new Set(tenantRoles.map(r => r.tenant_id).filter(Boolean))];
+  const tenantIds = getTenantIds(roles);
 
   useEffect(() => {
     const load = async () => {

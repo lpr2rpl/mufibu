@@ -5,15 +5,25 @@ const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const nextId = useRef(1);
+  const timers = useRef(new Map());
 
   const addToast = useCallback((message, type = 'info', duration = 3500) => {
     const id = nextId.current++;
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
+    const timer = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      timers.current.delete(id);
+    }, duration);
+    timers.current.set(id, timer);
     return id;
   }, []);
 
   const dismiss = useCallback((id) => {
+    const timer = timers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timers.current.delete(id);
+    }
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 

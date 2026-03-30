@@ -6,6 +6,7 @@ import Badge from '../components/Badge';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import Pagination from '../components/Pagination';
+import { truncateId } from '../utils/roles';
 
 const S = {
   card: { background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: 16 },
@@ -103,10 +104,10 @@ export default function Audit() {
                       </td>
                       <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.table_name || '—'}</td>
                       <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: '#888' }}>
-                        {e.record_id ? e.record_id.slice(0, 8) + '…' : '—'}
+                        {truncateId(e.record_id)}
                       </td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{e.user_id ? e.user_id.slice(0, 8) + '…' : '—'}</td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{e.tenant_id ? e.tenant_id.slice(0, 8) + '…' : '—'}</td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{truncateId(e.user_id)}</td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{truncateId(e.tenant_id)}</td>
                       <td style={{ ...S.td, fontSize: 12, color: '#666', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         title={e.notes || (e.new_values ? JSON.stringify(e.new_values) : '')}>
                         {e.notes || (e.new_values ? JSON.stringify(e.new_values).slice(0, 60) : '—')}

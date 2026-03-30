@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from passlib.context import CryptContext
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -167,7 +168,7 @@ def health_db():
     """Readiness probe — verifies database connectivity."""
     db = SessionLocal()
     try:
-        db.execute(__import__("sqlalchemy").text("SELECT 1"))
+        db.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
     except Exception as exc:
         logger.error("Health-DB probe failed: %s", exc)

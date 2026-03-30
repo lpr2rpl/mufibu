@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -8,7 +8,9 @@ import {
 } from '../api/client';
 import Badge from '../components/Badge';
 import Spinner from '../components/Spinner';
+import { truncateId } from '../utils/roles';
 import EmptyState from '../components/EmptyState';
+import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -45,19 +47,6 @@ const STATUS_TABS = [
 
 const LIMIT = 25;
 
-function Modal({ title, onClose, children }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 540, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ color: '#1a237e', margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888', lineHeight: 1 }}>×</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 export default function Journal() {
   const { tenantId } = useParams();
@@ -66,6 +55,7 @@ export default function Journal() {
 
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [rejectModal, setRejectModal] = useState(null);
@@ -85,18 +75,21 @@ export default function Journal() {
   };
   const [form, setForm] = useState(emptyForm);
 
+  // One-time fetch of the accounts list (chart of accounts doesn't change during a session)
+  useEffect(() => {
+    getAccounts(tenantId)
+      .then(({ data }) => { setAccounts(data); setAccountsLoaded(true); })
+      .catch(() => setAccountsLoaded(true));
+  }, [tenantId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = { skip: page * LIMIT, limit: LIMIT };
       if (filterStatus) params.status = filterStatus;
       if (search.trim()) params.search = search.trim();
-      const [je, acc] = await Promise.all([
-        getJournalEntries(tenantId, params),
-        accounts.length === 0 ? getAccounts(tenantId) : Promise.resolve({ data: accounts }),
-      ]);
-      setEntries(je.data);
-      if (accounts.length === 0) setAccounts(acc.data);
+      const { data } = await getJournalEntries(tenantId, params);
+      setEntries(data);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to load entries');
     }
@@ -164,7 +157,10 @@ export default function Journal() {
     }
   };
 
-  const accMap = Object.fromEntries(accounts.map(a => [a.id, `${a.account_number} – ${a.name}`]));
+  const accMap = useMemo(
+    () => Object.fromEntries(accounts.map(a => [a.id, `${a.account_number} – ${a.name}`])),
+    [accounts]
+  );
 
   return (
     <div>
@@ -225,8 +221,8 @@ export default function Journal() {
                       <td style={{ ...S.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.description}>
                         {e.description}
                       </td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{accMap[e.main_account_id] || e.main_account_id?.slice(0, 8)}</td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{accMap[e.contra_account_id] || e.contra_account_id?.slice(0, 8)}</td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{accMap[e.main_account_id] || truncateId(e.main_account_id)}</td>
+                      <td style={{ ...S.td, fontSize: 12 }}>{accMap[e.contra_account_id] || truncateId(e.contra_account_id)}</td>
                       <td style={{ ...S.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                         {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>

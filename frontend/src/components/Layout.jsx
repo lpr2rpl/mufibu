@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getTenants } from '../api/client';
+import { getTenantIds } from '../utils/roles';
 
 const S = {
   shell: { display: 'flex', minHeight: '100vh' },
@@ -64,8 +65,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const path = location.pathname;
 
-  const tenantRoles = roles.filter(r => r.scope === 'tenant');
-  const tenantIds = [...new Set(tenantRoles.map(r => r.tenant_id).filter(Boolean))];
+  const tenantIds = getTenantIds(roles);
 
   // Tenant selector state
   const [tenants, setTenants] = useState([]);
