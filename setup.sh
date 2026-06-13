@@ -49,7 +49,8 @@ RUN_DIR=/var/run/mufibu
 CONF_DIR=/etc/mufibu
 SEED_ADMIN_USERNAME=poweradmin
 SEED_ADMIN_EMAIL=poweradmin@mufibu.local
-SEED_ADMIN_PASSWORD=ChangeMe1!      # CHANGE THIS immediately after first login
+SEED_ADMIN_PASSWORD=ChangeMe1!      # Replaced with random value if unchanged
+SHOW_SEED_PASSWORD=0                # Set to 1 only for non-production installs
 JWT_ACCESS_MINUTES=60
 JWT_REFRESH_DAYS=7
 CORS_ORIGINS='["http://localhost","http://localhost:80"]'
@@ -154,6 +155,13 @@ load_config() {
 resolve_jwt_secret() {
     if [ -z "${JWT_SECRET_KEY:-}" ]; then
         JWT_SECRET_KEY="replace-with-a-long-random-string-$(head -c 32 /dev/urandom | base64 | tr -d '/+=\n')"
+    fi
+}
+
+resolve_seed_admin_password() {
+    if [ "${SEED_ADMIN_PASSWORD:-}" = "ChangeMe1!" ]; then
+        SEED_ADMIN_PASSWORD="initial-$(head -c 24 /dev/urandom | base64 | tr -d '/+=\n')"
+        warn "Generated a random initial PowerAdmin password because the default was unchanged."
     fi
 }
 
@@ -313,6 +321,7 @@ step_config() {
     step "Writing backend environment configuration"
 
     resolve_jwt_secret
+    resolve_seed_admin_password
     mkdir -p "${CONF_DIR}"
 
     if [ "$FORCE" -eq 0 ] && [ -r "${CONF_DIR}/backend.env" ]; then
@@ -382,16 +391,10 @@ step_nginx() {
     runcmd cp "${NGINX_SRC}/mufibu-backend.conf" \
                /etc/nginx/sites-available/mufibu-backend.conf
 
-    if [ "$DRY_RUN" -eq 0 ]; then
-        cat > /etc/nginx/conf.d/mufibu-upstream.conf <<'UPEOF'
-upstream mufibu_backend {
-    server 127.0.0.1:8080;
-    keepalive 16;
-}
-UPEOF
-    else
-        printf "${YELLOW}[DRY]${RESET}   (would write /etc/nginx/conf.d/mufibu-upstream.conf)\n"
-    fi
+    # The upstream definitions are embedded in the site configs. Remove the
+    # legacy shared upstream file if it exists to avoid duplicate names.
+    [ -e /etc/nginx/conf.d/mufibu-upstream.conf ] && \
+        runcmd rm -f /etc/nginx/conf.d/mufibu-upstream.conf
 
     runcmd ln -sf /etc/nginx/sites-available/mufibu-frontend.conf \
                   /etc/nginx/sites-enabled/mufibu-frontend.conf
@@ -499,7 +502,7 @@ load_config
 
 require_root
 
-[ "$DRY_RUN" -eq 1 ] && warn "Dry-run mode — no changes will be made."
+[ "$DRY_RUN" -eq 1 ] && warn "Dry-run mode - no changes will be made."
 
 for _step in $STEPS; do
     case "$_step" in
@@ -532,7 +535,11 @@ if [ "$_ran_all" -ge 8 ] && [ "$DRY_RUN" -eq 0 ]; then
     printf " API health: http://%s/api/v1/health\n" "$(hostname -I | awk '{print $1}')"
     printf "\n Initial PowerAdmin credentials:\n"
     printf "   Username: %s\n" "$SEED_ADMIN_USERNAME"
-    printf "   Password: %s\n" "$SEED_ADMIN_PASSWORD"
+    if [ "${SHOW_SEED_PASSWORD:-0}" -eq 1 ]; then
+        printf "   Password: %s\n" "$SEED_ADMIN_PASSWORD"
+    else
+        printf "   Password: stored in %s/backend.env (not printed)\n" "$CONF_DIR"
+    fi
     printf "\n${YELLOW} IMPORTANT: Change the admin password after first login!${RESET}\n"
     printf " Config:     %s/backend.env\n" "$CONF_DIR"
     printf " Logs:       %s/\n"            "$LOG_DIR"
