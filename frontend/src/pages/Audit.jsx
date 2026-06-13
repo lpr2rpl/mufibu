@@ -96,7 +96,7 @@ export default function Audit() {
                           background: ACTION_COLORS[e.action] || '#f5f5f5',
                         }}>{e.action}</span>
                       </td>
-                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.table_name || '—'}</td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.table_name || '\u2014'}</td>
                       <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: '#888' }}>
                         {truncateId(e.record_id)}
                       </td>
@@ -104,7 +104,7 @@ export default function Audit() {
                       <td style={{ ...S.td, fontSize: 12 }}>{truncateId(e.tenant_id)}</td>
                       <td style={{ ...S.td, fontSize: 12, color: '#666', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         title={e.notes || (e.new_values ? JSON.stringify(e.new_values) : '')}>
-                        {e.notes || (e.new_values ? JSON.stringify(e.new_values).slice(0, 60) : '—')}
+                        {e.notes || (e.new_values ? JSON.stringify(e.new_values).slice(0, 60) : '\u2014')}
                       </td>
                     </tr>
                   ))}

@@ -15,12 +15,12 @@ export default function Pagination({ page, onPage, hasMore }) {
     }}>
       <button style={btnStyle(page === 0)} disabled={page === 0}
         onClick={() => onPage(page - 1)}>
-        ← Previous
+        &larr; Previous
       </button>
       <span style={{ fontSize: 13, color: '#666' }}>Page {page + 1}</span>
       <button style={btnStyle(!hasMore)} disabled={!hasMore}
         onClick={() => onPage(page + 1)}>
-        Next →
+        Next &rarr;
       </button>
     </div>
   );

@@ -49,8 +49,8 @@ export const useToast = () => {
 };
 
 const COLORS = {
-  success: { bg: '#2e7d32', icon: '✓' },
-  error:   { bg: '#c62828', icon: '✕' },
+  success: { bg: '#2e7d32', icon: '\u2713' },
+  error:   { bg: '#c62828', icon: '\u2715' },
   warn:    { bg: '#e65100', icon: '!' },
   info:    { bg: '#1565c0', icon: 'i' },
 };
@@ -82,7 +82,7 @@ function ToastContainer({ toasts, dismiss }) {
             <button onClick={() => dismiss(t.id)} style={{
               background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)',
               cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0,
-            }}>×</button>
+            }}>&times;</button>
           </div>
         );
       })}

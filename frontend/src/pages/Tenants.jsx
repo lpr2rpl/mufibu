@@ -69,7 +69,7 @@ export default function Tenants() {
               {tenants.map(t => (
                 <tr key={t.id}>
                   <td style={{ ...S.td, fontWeight: 600 }}>{t.name}</td>
-                  <td style={{ ...S.td, color: '#666' }}>{t.description || '—'}</td>
+                  <td style={{ ...S.td, color: '#666' }}>{t.description || '\u2014'}</td>
                   <td style={S.td}><Badge label={t.is_active ? 'Active' : 'Inactive'} variant={t.is_active ? 'active' : 'inactive'} /></td>
                   <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(t.created_at).toLocaleDateString()}</td>
                 </tr>

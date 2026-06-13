@@ -151,7 +151,7 @@ export default function Users() {
                   {users.map(u => (
                     <tr key={u.id}>
                       <td style={{ ...S.td, fontWeight: 600 }}>{u.username}</td>
-                      <td style={S.td}>{u.full_name || '—'}</td>
+                      <td style={S.td}>{u.full_name || '\u2014'}</td>
                       <td style={S.td}>{u.email}</td>
                       <td style={S.td}>
                         <Badge label={u.is_active ? 'Active' : 'Inactive'} variant={u.is_active ? 'active' : 'inactive'} />

@@ -15,7 +15,7 @@ export default function Modal({ title, onClose, children, width = 520 }) {
           <button onClick={onClose} style={{
             background: 'none', border: 'none', fontSize: 22,
             cursor: 'pointer', color: '#888', lineHeight: 1,
-          }}>×</button>
+          }}>&times;</button>
         </div>
         {children}
       </div>

@@ -123,10 +123,10 @@ export default function Dashboard() {
               return (
                 <React.Fragment key={tid}>
                   <Link to={`/journal/${tid}`} style={S.quickLink('#1a237e', '#e8eaf6')}>
-                    Journal — {label}
+                    Journal &mdash; {label}
                   </Link>
                   <Link to={`/accounts/${tid}`} style={S.quickLink('#2e7d32', '#e8f5e9')}>
-                    Accounts — {label}
+                    Accounts &mdash; {label}
                   </Link>
                 </React.Fragment>
               );
@@ -143,9 +143,9 @@ export default function Dashboard() {
         return (
           <div key={tid} style={S.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 15, color: '#333' }}>Recent Entries — {tName}</h3>
+              <h3 style={{ margin: 0, fontSize: 15, color: '#333' }}>Recent Entries &mdash; {tName}</h3>
               <Link to={`/journal/${tid}`} style={{ fontSize: 13, color: '#1a237e', textDecoration: 'none' }}>
-                View all →
+                View all &rarr;
               </Link>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -189,7 +189,7 @@ export default function Dashboard() {
               {tenants.map(t => (
                 <tr key={t.id}>
                   <td style={{ ...S.td, fontWeight: 600 }}>{t.name}</td>
-                  <td style={{ ...S.td, color: '#666' }}>{t.description || '—'}</td>
+                  <td style={{ ...S.td, color: '#666' }}>{t.description || '\u2014'}</td>
                   <td style={S.td}>
                     <Badge label={t.is_active ? 'Active' : 'Inactive'} variant={t.is_active ? 'active' : 'inactive'} />
                   </td>
