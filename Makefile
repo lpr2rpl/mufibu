@@ -1,7 +1,10 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: backend-syntax backend-test frontend-test frontend-build db-smoke ci
+.PHONY: ascii-check backend-syntax backend-test frontend-test frontend-build db-smoke ci
+
+ascii-check:
+	./scripts/ascii_check.sh
 
 backend-syntax:
 	$(PYTHON) -c "import pathlib; [compile(p.read_text(), str(p), 'exec') for p in pathlib.Path('backend/app').rglob('*.py')]"
@@ -18,4 +21,4 @@ frontend-build:
 db-smoke:
 	./scripts/db_bootstrap_smoke.sh
 
-ci: backend-syntax backend-test frontend-test frontend-build
+ci: ascii-check backend-syntax backend-test frontend-test frontend-build

@@ -36,10 +36,10 @@ Strengths observed:
 
 ### P1 - Correctness and Security
 
-- [ ] Enforce ASCII7 across all repository artifacts.  Eight frontend files
-      contain raw Unicode glyphs (box, multiplication sign, arrows, em dash,
-      check/cross).  Replace with ASCII-source equivalents and add a CI guard.
-      See "ASCII7 Policy".
+- [x] Enforce ASCII7 across all repository artifacts.  Eight frontend files
+      held raw Unicode glyphs (box, multiplication sign, arrows, em dash,
+      check/cross); replaced with ASCII-source equivalents and guarded by
+      `scripts/ascii_check.sh` in `make ci`.  See "ASCII7 Policy".
 - [ ] Capture `ip_address`, `user_agent`, and `session_id` for all audit
       writes, not just login/logout.  These columns exist in `audit_log` but
       are only populated in `backend/app/routers/auth.py`; journal, account, and
