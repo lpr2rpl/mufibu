@@ -25,6 +25,12 @@ export function canManageRoles(roles, tenantId) {
   return hasTenantRole(roles, tenantId, 'Admin') || hasGlobalRole(roles, 'PowerAdmin');
 }
 
+export function canReadAccounts(roles, tenantId) {
+  return canReadBookings(roles, tenantId) ||
+    hasTenantRole(roles, tenantId, 'Admin') ||
+    hasGlobalRole(roles, 'PowerAdmin');
+}
+
 export function canWriteAccounts(roles, tenantId) {
   return hasTenantRole(roles, tenantId, 'PowerUser', 'Admin') || hasGlobalRole(roles, 'PowerAdmin');
 }

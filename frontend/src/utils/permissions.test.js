@@ -1,6 +1,7 @@
 import {
   canApproveBookings,
   canPostJournalEntry,
+  canReadAccounts,
   canReadBookings,
   canShowAuditRoute,
   canShowTenantsRoute,
@@ -70,6 +71,13 @@ describe('permission helpers', () => {
   });
 
   test('account write visibility matches frontend action rules', () => {
+    expect(canReadAccounts([tenantRole('Reader')], tenantA)).toBe(true);
+    expect(canReadAccounts([tenantRole('Approver')], tenantA)).toBe(true);
+    expect(canReadAccounts([tenantRole('Officer')], tenantA)).toBe(true);
+    expect(canReadAccounts([tenantRole('Admin')], tenantA)).toBe(true);
+    expect(canReadAccounts([globalRole('Auditor')], tenantA)).toBe(true);
+    expect(canReadAccounts([globalRole('PowerAdmin')], tenantA)).toBe(true);
+
     expect(canWriteAccounts([tenantRole('PowerUser')], tenantA)).toBe(true);
     expect(canWriteAccounts([tenantRole('Admin')], tenantA)).toBe(true);
     expect(canWriteAccounts([globalRole('PowerAdmin')], tenantA)).toBe(true);

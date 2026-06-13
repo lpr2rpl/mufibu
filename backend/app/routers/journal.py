@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
@@ -74,6 +75,7 @@ def list_entries(
     entry_status: Optional[str] = Query(None, alias="status"),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, min_length=1, max_length=100),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -88,6 +90,14 @@ def list_entries(
         q = q.filter(JournalEntry.entry_date >= from_date)
     if to_date:
         q = q.filter(JournalEntry.entry_date <= to_date)
+    if search:
+        pattern = f"%{search.strip()}%"
+        q = q.filter(or_(
+            JournalEntry.entry_number.ilike(pattern),
+            JournalEntry.description.ilike(pattern),
+            JournalEntry.reference.ilike(pattern),
+            JournalEntry.notes.ilike(pattern),
+        ))
     return q.order_by(JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
 
 

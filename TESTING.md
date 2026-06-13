@@ -1,7 +1,7 @@
 # MuFiBu Testing
 
 This repository provides lightweight CI targets for backend security contracts,
-frontend permission contracts, and frontend build validation.
+frontend permission/API contracts, and frontend build validation.
 
 ## Commands
 
@@ -48,8 +48,11 @@ permission contracts that feed PostgreSQL row-level security variables.
 
 `frontend/src/utils/permissions.test.js` checks role-based navigation and
 action visibility.  The tests cover tenant isolation, booking read/write
-permissions, approval rights, journal posting visibility, account write
-visibility, and admin/audit navigation.
+permissions, approval rights, journal posting visibility, account visibility,
+and admin/audit navigation.
+
+`frontend/src/api/contracts.test.js` checks the frontend API path constants
+against the backend route shape used by routers.
 
 ## Database Bootstrap Smoke Test
 

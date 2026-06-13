@@ -4,6 +4,7 @@ import {
   canApproveBookings as canApproveBookingsForRoles,
   canManageRoles as canManageRolesForRoles,
   canPostJournalEntry as canPostJournalEntryForRoles,
+  canReadAccounts as canReadAccountsForRoles,
   canReadBookings as canReadBookingsForRoles,
   canWriteAccounts as canWriteAccountsForRoles,
   canWriteBookings as canWriteBookingsForRoles,
@@ -71,6 +72,9 @@ export function AuthProvider({ children }) {
   const canManageRoles = (tenantId) =>
     canManageRolesForRoles(roles, tenantId);
 
+  const canReadAccounts = (tenantId) =>
+    canReadAccountsForRoles(roles, tenantId);
+
   const canWriteAccounts = (tenantId) =>
     canWriteAccountsForRoles(roles, tenantId);
 
@@ -86,7 +90,7 @@ export function AuthProvider({ children }) {
       login, logout: doLogout,
       hasGlobalRole, hasTenantRole,
       canReadBookings, canWriteBookings, canApprove,
-      canManageRoles, canWriteAccounts, canPostJournalEntry,
+      canManageRoles, canReadAccounts, canWriteAccounts, canPostJournalEntry,
       isPowerAdmin, isAuditor,
     }}>
       {children}

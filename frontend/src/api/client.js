@@ -1,9 +1,8 @@
 import axios from 'axios';
-
-const BASE_URL = '/api/v1';
+import { API_BASE_URL, API_PATHS } from './contracts';
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -26,7 +25,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {
+          const { data } = await axios.post(`${API_BASE_URL}${API_PATHS.auth.refresh}`, {
             refresh_token: refreshToken,
           });
           localStorage.setItem('access_token', data.access_token);
@@ -46,53 +45,53 @@ api.interceptors.response.use(
 
 // Auth
 export const login = (username, password) =>
-  api.post('/auth/login', { username, password });
-export const logout = () => api.post('/auth/logout');
-export const getMe = () => api.get('/auth/me');
+  api.post(API_PATHS.auth.login, { username, password });
+export const logout = () => api.post(API_PATHS.auth.logout);
+export const getMe = () => api.get(API_PATHS.auth.me);
 
 // Tenants
-export const getTenants = () => api.get('/tenants');
-export const createTenant = (data) => api.post('/tenants', data);
+export const getTenants = () => api.get(API_PATHS.tenants.list);
+export const createTenant = (data) => api.post(API_PATHS.tenants.list, data);
 
 // Users
-export const getUsers = () => api.get('/users');
-export const createUser = (data) => api.post('/users', data);
-export const updateUser = (id, data) => api.patch(`/users/${id}`, data);
+export const getUsers = () => api.get(API_PATHS.users.list);
+export const createUser = (data) => api.post(API_PATHS.users.list, data);
+export const updateUser = (id, data) => api.patch(API_PATHS.users.detail(id), data);
 
 // Roles
-export const getRoles = () => api.get('/roles');
-export const getAssignments = (params) => api.get('/roles/assignments', { params });
-export const assignRole = (data) => api.post('/roles/assignments', data);
-export const extendAssignment = (id, data) => api.patch(`/roles/assignments/${id}/extend`, data);
-export const revokeAssignment = (id, data) => api.patch(`/roles/assignments/${id}/revoke`, data);
+export const getRoles = () => api.get(API_PATHS.roles.list);
+export const getAssignments = (params) => api.get(API_PATHS.roles.assignments, { params });
+export const assignRole = (data) => api.post(API_PATHS.roles.assignments, data);
+export const extendAssignment = (id, data) => api.patch(API_PATHS.roles.assignmentExtend(id), data);
+export const revokeAssignment = (id, data) => api.patch(API_PATHS.roles.assignmentRevoke(id), data);
 
 // Accounts
 export const getAccounts = (tenantId, params) =>
-  api.get(`/tenants/${tenantId}/accounts`, { params });
+  api.get(API_PATHS.tenants.accounts(tenantId), { params });
 export const createAccount = (tenantId, data) =>
-  api.post(`/tenants/${tenantId}/accounts`, data);
+  api.post(API_PATHS.tenants.accounts(tenantId), data);
 export const updateAccount = (tenantId, accountId, data) =>
-  api.patch(`/tenants/${tenantId}/accounts/${accountId}`, data);
+  api.patch(API_PATHS.tenants.account(tenantId, accountId), data);
 
 // Journal
 export const getJournalEntries = (tenantId, params) =>
-  api.get(`/tenants/${tenantId}/journal`, { params });
+  api.get(API_PATHS.tenants.journal(tenantId), { params });
 export const getJournalEntry = (tenantId, entryId) =>
-  api.get(`/tenants/${tenantId}/journal/${entryId}`);
+  api.get(API_PATHS.tenants.journalEntry(tenantId, entryId));
 export const createJournalEntry = (tenantId, data) =>
-  api.post(`/tenants/${tenantId}/journal`, data);
+  api.post(API_PATHS.tenants.journal(tenantId), data);
 export const updateJournalEntry = (tenantId, entryId, data) =>
-  api.patch(`/tenants/${tenantId}/journal/${entryId}`, data);
+  api.patch(API_PATHS.tenants.journalEntry(tenantId, entryId), data);
 export const submitEntry = (tenantId, entryId) =>
-  api.post(`/tenants/${tenantId}/journal/${entryId}/submit`);
+  api.post(API_PATHS.tenants.journalSubmit(tenantId, entryId));
 export const approveEntry = (tenantId, entryId, data) =>
-  api.post(`/tenants/${tenantId}/journal/${entryId}/approve`, data);
+  api.post(API_PATHS.tenants.journalApprove(tenantId, entryId), data);
 export const rejectEntry = (tenantId, entryId, data) =>
-  api.post(`/tenants/${tenantId}/journal/${entryId}/reject`, data);
+  api.post(API_PATHS.tenants.journalReject(tenantId, entryId), data);
 export const postEntry = (tenantId, entryId) =>
-  api.post(`/tenants/${tenantId}/journal/${entryId}/post`);
+  api.post(API_PATHS.tenants.journalPost(tenantId, entryId));
 
 // Audit
-export const getAuditLog = (params) => api.get('/audit', { params });
+export const getAuditLog = (params) => api.get(API_PATHS.audit.list, { params });
 
 export default api;

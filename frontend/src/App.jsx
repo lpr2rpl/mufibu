@@ -11,6 +11,11 @@ import Accounts from './pages/Accounts';
 import Users from './pages/Users';
 import Tenants from './pages/Tenants';
 import Audit from './pages/Audit';
+import {
+  canShowAuditRoute,
+  canShowTenantsRoute,
+  canShowUserRoleRoute,
+} from './utils/permissions';
 
 // Global CSS for animations (injected once)
 const globalStyle = `
@@ -31,11 +36,46 @@ function AppRoutes() {
             <Layout>
               <Routes>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/journal/:tenantId" element={<Journal />} />
-                <Route path="/accounts/:tenantId" element={<Accounts />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/tenants" element={<Tenants />} />
-                <Route path="/audit" element={<Audit />} />
+                <Route
+                  path="/journal/:tenantId"
+                  element={
+                    <ProtectedRoute allow={(auth, params) => auth.canReadBookings(params.tenantId)}>
+                      <Journal />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/:tenantId"
+                  element={
+                    <ProtectedRoute allow={(auth, params) => auth.canReadAccounts(params.tenantId)}>
+                      <Accounts />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <ProtectedRoute allow={(auth) => canShowUserRoleRoute(auth.roles)}>
+                      <Users />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tenants"
+                  element={
+                    <ProtectedRoute allow={(auth) => canShowTenantsRoute(auth.roles)}>
+                      <Tenants />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/audit"
+                  element={
+                    <ProtectedRoute allow={(auth) => canShowAuditRoute(auth.roles)}>
+                      <Audit />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>

@@ -3,7 +3,13 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getTenants } from '../api/client';
 import { getTenantIds } from '../utils/roles';
-import { canShowAuditRoute, canShowTenantsRoute, canShowUserRoleRoute } from '../utils/permissions';
+import {
+  canReadAccounts,
+  canReadBookings,
+  canShowAuditRoute,
+  canShowTenantsRoute,
+  canShowUserRoleRoute,
+} from '../utils/permissions';
 
 const S = {
   shell: { display: 'flex', minHeight: '100vh' },
@@ -83,14 +89,22 @@ export default function Layout({ children }) {
     ? tenants
     : tenantIds.map(id => ({ id, name: id.slice(0, 8) + '...' }));
 
+  useEffect(() => {
+    if (!activeTenant && tenantList.length > 0) {
+      setActiveTenant(tenantList[0].id);
+    }
+  }, [activeTenant, tenantList]);
+
   const handleLogout = async () => { await logout(); navigate('/login'); };
 
   const nav = [
     { section: 'Overview' },
     { to: '/dashboard', label: 'Dashboard' },
     activeTenant && { section: 'Accounting' },
-    activeTenant && { to: `/journal/${activeTenant}`, label: 'Journal Entries' },
-    activeTenant && { to: `/accounts/${activeTenant}`, label: 'Chart of Accounts' },
+    activeTenant && canReadBookings(roles, activeTenant) &&
+      { to: `/journal/${activeTenant}`, label: 'Journal Entries' },
+    activeTenant && canReadAccounts(roles, activeTenant) &&
+      { to: `/accounts/${activeTenant}`, label: 'Chart of Accounts' },
     canShowUserRoleRoute(roles) && { section: 'Administration' },
     canShowUserRoleRoute(roles) && { to: '/users', label: 'Users & Roles' },
     canShowTenantsRoute(roles) && { to: '/tenants', label: 'Tenants' },
