@@ -24,9 +24,9 @@ const EMPTY_FORM = { account_number: '', name: '', account_type: 'asset', descri
 
 export default function Accounts() {
   const { tenantId } = useParams();
-  const { hasTenantRole, isPowerAdmin } = useAuth();
+  const { canWriteAccounts } = useAuth();
   const toast = useToast();
-  const canWrite = hasTenantRole(tenantId, 'PowerUser', 'Admin') || isPowerAdmin();
+  const canWrite = canWriteAccounts(tenantId);
 
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +106,7 @@ export default function Accounts() {
                     <td style={S.td}>
                       <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{a.account_type}</span>
                     </td>
-                    <td style={{ ...S.td, color: '#888' }}>{a.description || '—'}</td>
+                    <td style={{ ...S.td, color: '#888' }}>{a.description || '-'}</td>
                     <td style={S.td}>
                       <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />
                     </td>

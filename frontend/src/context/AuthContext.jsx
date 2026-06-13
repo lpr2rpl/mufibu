@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { login as apiLogin, logout as apiLogout, getMe } from '../api/client';
+import {
+  canApproveBookings as canApproveBookingsForRoles,
+  canManageRoles as canManageRolesForRoles,
+  canPostJournalEntry as canPostJournalEntryForRoles,
+  canReadBookings as canReadBookingsForRoles,
+  canWriteAccounts as canWriteAccountsForRoles,
+  canWriteBookings as canWriteBookingsForRoles,
+  hasGlobalRole as hasGlobalRoleForRoles,
+  hasTenantRole as hasTenantRoleForRoles,
+} from '../utils/permissions';
 
 const AuthContext = createContext(null);
 
@@ -44,22 +54,28 @@ export function AuthProvider({ children }) {
 
   // Permission helpers
   const hasGlobalRole = (...names) =>
-    roles.some(r => names.includes(r.role) && r.scope === 'global');
+    hasGlobalRoleForRoles(roles, ...names);
 
   const hasTenantRole = (tenantId, ...names) =>
-    roles.some(r => names.includes(r.role) && r.tenant_id === tenantId);
+    hasTenantRoleForRoles(roles, tenantId, ...names);
 
   const canReadBookings = (tenantId) =>
-    hasTenantRole(tenantId, 'Reader', 'Writer', 'PowerUser') || hasGlobalRole('Auditor');
+    canReadBookingsForRoles(roles, tenantId);
 
   const canWriteBookings = (tenantId) =>
-    hasTenantRole(tenantId, 'Writer', 'PowerUser');
+    canWriteBookingsForRoles(roles, tenantId);
 
   const canApprove = (tenantId) =>
-    hasTenantRole(tenantId, 'Approver');
+    canApproveBookingsForRoles(roles, tenantId);
 
   const canManageRoles = (tenantId) =>
-    hasTenantRole(tenantId, 'Admin') || hasGlobalRole('PowerAdmin');
+    canManageRolesForRoles(roles, tenantId);
+
+  const canWriteAccounts = (tenantId) =>
+    canWriteAccountsForRoles(roles, tenantId);
+
+  const canPostJournalEntry = (tenantId) =>
+    canPostJournalEntryForRoles(roles, tenantId);
 
   const isPowerAdmin = () => hasGlobalRole('PowerAdmin');
   const isAuditor = () => hasGlobalRole('Auditor');
@@ -70,7 +86,8 @@ export function AuthProvider({ children }) {
       login, logout: doLogout,
       hasGlobalRole, hasTenantRole,
       canReadBookings, canWriteBookings, canApprove,
-      canManageRoles, isPowerAdmin, isAuditor,
+      canManageRoles, canWriteAccounts, canPostJournalEntry,
+      isPowerAdmin, isAuditor,
     }}>
       {children}
     </AuthContext.Provider>

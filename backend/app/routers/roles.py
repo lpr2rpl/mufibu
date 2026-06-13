@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
+from app.auth.permissions import POWER_ADMIN_ONLY_ROLES
 from app.database import get_db
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.schemas import (
@@ -27,10 +28,6 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/roles", tags=["roles"])
-
-# Roles that only PowerAdmin may assign or revoke.
-_POWER_ADMIN_ONLY_ROLES = {"Admin", "Officer"}
-
 
 # ------------------------------------------------------------------
 # Role catalog
@@ -127,7 +124,7 @@ def assign_role(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="tenant_id is required for tenant-scoped roles")
 
-        if role.name in _POWER_ADMIN_ONLY_ROLES:
+        if role.name in POWER_ADMIN_ONLY_ROLES:
             # Admin and Officer can only be assigned by PowerAdmin.
             # Officer implements the "tenant map": PowerAdmin selects which
             # tenants an Officer user gets read access to.
@@ -212,7 +209,7 @@ def extend_assignment(
 
     # Permission: PowerAdmin for all; Admin for their tenant (except Admin/Officer);
     # the original assigner may also extend their own assignment.
-    if role and role.name in _POWER_ADMIN_ONLY_ROLES:
+    if role and role.name in POWER_ADMIN_ONLY_ROLES:
         if not current.is_power_admin():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail=f"Only PowerAdmin can extend the {role.name} role")
@@ -287,7 +284,7 @@ def revoke_assignment(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="PowerAdmin role required to revoke global roles")
     # Tenant roles: Admin/Officer require PowerAdmin; others allow tenant Admin
-    elif role and role.name in _POWER_ADMIN_ONLY_ROLES:
+    elif role and role.name in POWER_ADMIN_ONLY_ROLES:
         if not current.is_power_admin():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

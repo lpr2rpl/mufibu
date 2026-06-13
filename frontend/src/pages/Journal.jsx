@@ -49,7 +49,7 @@ const makeEmptyForm = () => ({
 
 export default function Journal() {
   const { tenantId } = useParams();
-  const { canWriteBookings, canApprove } = useAuth();
+  const { canWriteBookings, canApprove, canPostJournalEntry } = useAuth();
   const toast = useToast();
 
   const [entries, setEntries] = useState([]);
@@ -149,7 +149,7 @@ export default function Journal() {
   };
 
   const accMap = useMemo(
-    () => Object.fromEntries(accounts.map(a => [a.id, `${a.account_number} – ${a.name}`])),
+    () => Object.fromEntries(accounts.map(a => [a.id, `${a.account_number} - ${a.name}`])),
     [accounts]
   );
 
@@ -165,7 +165,7 @@ export default function Journal() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           style={S.searchInput}
-          placeholder="Search description, number…"
+          placeholder="Search description, number..."
           value={search}
           onChange={e => {
             setSearch(e.target.value);
@@ -230,7 +230,7 @@ export default function Journal() {
                               onClick={() => { setRejectModal(e); setRejectReason(''); }}>Reject</button>
                           </>
                         )}
-                        {canWriteBookings(tenantId) && e.status === 'approved' && (
+                        {canPostJournalEntry(tenantId) && e.status === 'approved' && (
                           <button style={{ ...S.btn('#6a1b9a'), padding: '3px 9px', fontSize: 12 }}
                             onClick={() => setConfirmPost(e)}>Post</button>
                         )}
@@ -271,7 +271,7 @@ export default function Journal() {
                 <select style={S.input} value={form.main_account_id}
                   onChange={e => setForm(f => ({ ...f, main_account_id: e.target.value }))} required>
                   <option value="">Select account</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.account_number} – {a.name}</option>)}
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.account_number} - {a.name}</option>)}
                 </select>
               </div>
               <div>
@@ -279,7 +279,7 @@ export default function Journal() {
                 <select style={S.input} value={form.contra_account_id}
                   onChange={e => setForm(f => ({ ...f, contra_account_id: e.target.value }))} required>
                   <option value="">Select account</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.account_number} – {a.name}</option>)}
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.account_number} - {a.name}</option>)}
                 </select>
               </div>
             </div>
@@ -306,7 +306,7 @@ export default function Journal() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setShowForm(false)} style={S.btn('#888')}>Cancel</button>
               <button type="submit" disabled={submitting} style={{ ...S.btn(), opacity: submitting ? 0.7 : 1 }}>
-                {submitting ? 'Creating…' : 'Create Entry'}
+                {submitting ? 'Creating...' : 'Create Entry'}
               </button>
             </div>
           </form>
@@ -321,7 +321,7 @@ export default function Journal() {
           <label style={S.label}>Rejection Reason <span style={{ color: '#c62828' }}>*</span></label>
           <textarea style={{ ...S.input, height: 80, marginBottom: 16 }}
             value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-            placeholder="Provide a reason for rejection…" required />
+            placeholder="Provide a reason for rejection..." required />
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => setRejectModal(null)} style={S.btn('#888')}>Cancel</button>
             <button onClick={handleReject} disabled={!rejectReason.trim()}

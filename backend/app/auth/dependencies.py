@@ -27,6 +27,18 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_handler import decode_token
+from app.auth.permissions import (
+    has_global_role,
+    has_tenant_role,
+    is_admin,
+    is_approver,
+    is_auditor,
+    is_officer,
+    is_power_admin,
+    is_power_user,
+    is_reader,
+    is_writer,
+)
 from app.database import get_db
 from app.models import User, UserRoleAssignment, Role
 from app.rls import RLSContext, build_rls_context, set_rls_context
@@ -77,50 +89,40 @@ class CurrentUser:
     # --- Low-level helpers ------------------------------------------------
 
     def has_global_role(self, *role_names: str) -> bool:
-        return any(
-            r["role"] in role_names and r["scope"] == "global"
-            for r in self._roles
-        )
+        return has_global_role(self._roles, *role_names)
 
     def has_tenant_role(self, tenant_id: uuid.UUID, *role_names: str) -> bool:
-        tid = str(tenant_id)
-        return any(
-            r["role"] in role_names and r.get("tenant_id") == tid
-            for r in self._roles
-        )
+        return has_tenant_role(self._roles, tenant_id, *role_names)
 
     # --- Application-layer permission checks ------------------------------
     # These mirror what the RLS policies enforce at the DB level.
 
     def is_reader(self, tenant_id: uuid.UUID) -> bool:
         """Reader, Writer, PowerUser, Approver, Officer all grant read access."""
-        return (
-            self.has_tenant_role(tenant_id, "Reader", "Writer", "PowerUser", "Approver", "Officer")
-            or self.has_global_role("Auditor")
-        )
+        return is_reader(self._roles, tenant_id)
 
     def is_writer(self, tenant_id: uuid.UUID) -> bool:
-        return self.has_tenant_role(tenant_id, "Writer", "PowerUser")
+        return is_writer(self._roles, tenant_id)
 
     def is_power_user(self, tenant_id: uuid.UUID) -> bool:
-        return self.has_tenant_role(tenant_id, "PowerUser")
+        return is_power_user(self._roles, tenant_id)
 
     def is_approver(self, tenant_id: uuid.UUID) -> bool:
-        return self.has_tenant_role(tenant_id, "Approver")
+        return is_approver(self._roles, tenant_id)
 
     def is_officer(self, tenant_id: uuid.UUID) -> bool:
         """Officer: read-only for assigned tenants (assigned per-tenant by PowerAdmin)."""
-        return self.has_tenant_role(tenant_id, "Officer")
+        return is_officer(self._roles, tenant_id)
 
     def is_admin(self, tenant_id: uuid.UUID) -> bool:
         """Admin: role management only, NO booking read/write."""
-        return self.has_tenant_role(tenant_id, "Admin")
+        return is_admin(self._roles, tenant_id)
 
     def is_auditor(self) -> bool:
-        return self.has_global_role("Auditor")
+        return is_auditor(self._roles)
 
     def is_power_admin(self) -> bool:
-        return self.has_global_role("PowerAdmin")
+        return is_power_admin(self._roles)
 
 
 def get_current_user(

@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getTenants } from '../api/client';
 import { getTenantIds } from '../utils/roles';
+import { canShowAuditRoute, canShowTenantsRoute, canShowUserRoleRoute } from '../utils/permissions';
 
 const S = {
   shell: { display: 'flex', minHeight: '100vh' },
@@ -80,10 +81,9 @@ export default function Layout({ children }) {
   // Build display-ready tenant list
   const tenantList = tenants.length > 0
     ? tenants
-    : tenantIds.map(id => ({ id, name: id.slice(0, 8) + '…' }));
+    : tenantIds.map(id => ({ id, name: id.slice(0, 8) + '...' }));
 
   const handleLogout = async () => { await logout(); navigate('/login'); };
-  const isOfficer = roles.some(r => r.role === 'Officer');
 
   const nav = [
     { section: 'Overview' },
@@ -91,10 +91,10 @@ export default function Layout({ children }) {
     activeTenant && { section: 'Accounting' },
     activeTenant && { to: `/journal/${activeTenant}`, label: 'Journal Entries' },
     activeTenant && { to: `/accounts/${activeTenant}`, label: 'Chart of Accounts' },
-    (isPowerAdmin() || roles.some(r => r.role === 'Admin')) && { section: 'Administration' },
-    (isPowerAdmin() || roles.some(r => r.role === 'Admin')) && { to: '/users', label: 'Users & Roles' },
-    isPowerAdmin() && { to: '/tenants', label: 'Tenants' },
-    (isAuditor() || isPowerAdmin() || isOfficer) && { to: '/audit', label: 'Audit Log' },
+    canShowUserRoleRoute(roles) && { section: 'Administration' },
+    canShowUserRoleRoute(roles) && { to: '/users', label: 'Users & Roles' },
+    canShowTenantsRoute(roles) && { to: '/tenants', label: 'Tenants' },
+    canShowAuditRoute(roles) && { to: '/audit', label: 'Audit Log' },
   ].filter(Boolean);
 
   return (
