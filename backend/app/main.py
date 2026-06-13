@@ -3,6 +3,8 @@ MuFiBu - Multi-Tenant Financial Accounting System
 FastAPI application entry point.
 """
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -15,11 +17,18 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
+from app.logging_context import RequestIdFilter, clear_request_id, set_request_id
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.rls import BYPASS_CONTEXT, set_rls_context
 from app.routers import accounts, audit, auth, journal, roles, tenants, users
 
 logger = logging.getLogger(__name__)
+_request_id_filter = RequestIdFilter()
+root_logger = logging.getLogger()
+root_logger.addFilter(_request_id_filter)
+for handler in root_logger.handlers:
+    handler.addFilter(_request_id_filter)
+logger.addFilter(_request_id_filter)
 
 settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -115,6 +124,27 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    set_request_id(request_id)
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    finally:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "request method=%s path=%s request_id=%s elapsed_ms=%.2f",
+            request.method,
+            request.url.path,
+            request_id,
+            elapsed_ms,
+        )
+        clear_request_id()
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Global exception handlers
 # ---------------------------------------------------------------------------
@@ -159,13 +189,13 @@ app.include_router(audit.router,    prefix="/api/v1")
 
 @app.get("/api/v1/health", tags=["health"])
 def health():
-    """Basic liveness probe — returns OK without hitting the database."""
+    """Basic liveness probe - returns OK without hitting the database."""
     return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
 
 
 @app.get("/api/v1/health/db", tags=["health"])
 def health_db():
-    """Readiness probe — verifies database connectivity."""
+    """Readiness probe - verifies database connectivity."""
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))

@@ -20,23 +20,20 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
+from app.auth.policies import (
+    require_journal_approver,
+    require_journal_power_user,
+    require_journal_read,
+    require_journal_writer,
+)
 from app.database import get_db
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
-    JournalEntryReject, JournalEntryUpdate,
+    JournalEntryPage, JournalEntryReject, JournalEntryUpdate,
 )
 
 router = APIRouter(prefix="/tenants/{tenant_id}/journal", tags=["journal"])
-
-
-def _require_read(current: CurrentUser, tenant_id: uuid.UUID):
-    """
-    Read access: Reader, Writer, PowerUser, Approver, Officer (is_reader covers
-    all of these + Auditor).  Admin and PowerAdmin are explicitly excluded.
-    """
-    if not current.is_reader(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read access denied")
 
 
 def _get_entry(db: Session, tenant_id: uuid.UUID, entry_id: uuid.UUID) -> JournalEntry:
@@ -67,19 +64,14 @@ def _next_entry_number(db: Session, tenant_id: uuid.UUID) -> str:
     return f"{prefix}{seq:05d}"
 
 
-@router.get("", response_model=List[JournalEntryOut])
-def list_entries(
+def _entry_list_query(
+    db: Session,
     tenant_id: uuid.UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-    entry_status: Optional[str] = Query(None, alias="status"),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-    search: Optional[str] = Query(None, min_length=1, max_length=100),
-    current: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    entry_status: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    search: Optional[str],
 ):
-    _require_read(current, tenant_id)
     q = db.query(JournalEntry).filter(
         JournalEntry.tenant_id == tenant_id,
         JournalEntry.deleted_at.is_(None),
@@ -98,7 +90,43 @@ def list_entries(
             JournalEntry.reference.ilike(pattern),
             JournalEntry.notes.ilike(pattern),
         ))
+    return q
+
+
+@router.get("", response_model=List[JournalEntryOut])
+def list_entries(
+    tenant_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    entry_status: Optional[str] = Query(None, alias="status"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, min_length=1, max_length=100),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_journal_read(current, tenant_id)
+    q = _entry_list_query(db, tenant_id, entry_status, from_date, to_date, search)
     return q.order_by(JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
+
+
+@router.get("/page", response_model=JournalEntryPage)
+def list_entries_page(
+    tenant_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    entry_status: Optional[str] = Query(None, alias="status"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, min_length=1, max_length=100),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_journal_read(current, tenant_id)
+    q = _entry_list_query(db, tenant_id, entry_status, from_date, to_date, search)
+    total = q.count()
+    items = q.order_by(JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
+    return JournalEntryPage(total=total, skip=skip, limit=limit, items=items)
 
 
 @router.post("", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
@@ -108,8 +136,7 @@ def create_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current.is_writer(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Writer role required")
+    require_journal_writer(current, tenant_id)
 
     for acc_id in (body.main_account_id, body.contra_account_id):
         acc = db.query(Account).filter(
@@ -190,7 +217,7 @@ def get_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_read(current, tenant_id)
+    require_journal_read(current, tenant_id)
     return _get_entry(db, tenant_id, entry_id)
 
 
@@ -259,8 +286,7 @@ def submit_for_approval(
 ):
     """Move a draft entry to pending_approval (triggers four-eyes workflow)."""
     entry = _get_entry(db, tenant_id, entry_id)
-    if not current.is_writer(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Writer role required")
+    require_journal_writer(current, tenant_id)
     if entry.created_by != current.id and not current.is_power_user(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot submit another user's entry")
     if entry.status != "draft":
@@ -288,8 +314,7 @@ def approve_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current.is_approver(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Approver role required")
+    require_journal_approver(current, tenant_id)
     entry = _get_entry(db, tenant_id, entry_id)
     if entry.status != "pending_approval":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Entry is not pending approval")
@@ -324,8 +349,7 @@ def reject_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current.is_approver(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Approver role required")
+    require_journal_approver(current, tenant_id)
     entry = _get_entry(db, tenant_id, entry_id)
     if entry.status != "pending_approval":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Entry is not pending approval")
@@ -354,8 +378,7 @@ def post_entry(
     db: Session = Depends(get_db),
 ):
     """Post an approved entry (finalise). Requires PowerUser."""
-    if not current.is_power_user(tenant_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerUser role required")
+    require_journal_power_user(current, tenant_id)
     entry = _get_entry(db, tenant_id, entry_id)
     if entry.status not in ("approved", "draft"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,

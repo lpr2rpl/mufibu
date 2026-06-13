@@ -280,3 +280,31 @@ class Page(BaseModel):
     skip: int
     limit: int
     items: list
+
+
+class AccountPage(Page):
+    items: List[AccountOut]
+
+
+class AuditLogPage(Page):
+    items: List[AuditLogOut]
+
+
+class JournalEntryPage(Page):
+    items: List[JournalEntryOut]
+
+
+class RoleAssignmentPage(Page):
+    items: List[RoleAssignmentOut]
+
+
+class RolePage(Page):
+    items: List[RoleOut]
+
+
+class TenantPage(Page):
+    items: List[TenantOut]
+
+
+class UserPage(Page):
+    items: List[UserOut]

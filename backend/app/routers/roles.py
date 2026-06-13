@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.permissions import POWER_ADMIN_ONLY_ROLES
@@ -24,7 +24,7 @@ from app.database import get_db
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.schemas import (
     RoleAssignmentCreate, RoleAssignmentExtend, RoleAssignmentOut,
-    RoleAssignmentRevoke, RoleOut,
+    RoleAssignmentPage, RoleAssignmentRevoke, RoleOut, RolePage,
 )
 
 router = APIRouter(prefix="/roles", tags=["roles"])
@@ -38,21 +38,40 @@ def list_roles(current: CurrentUser = Depends(get_current_user), db: Session = D
     return db.query(Role).all()
 
 
-# ------------------------------------------------------------------
-# Assignments
-# ------------------------------------------------------------------
-
-@router.get("/assignments", response_model=List[RoleAssignmentOut])
-def list_assignments(
-    user_id: Optional[uuid.UUID] = Query(None),
-    tenant_id: Optional[uuid.UUID] = Query(None),
-    active_only: bool = Query(True),
+@router.get("/page", response_model=RolePage)
+def list_roles_page(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(UserRoleAssignment).filter(UserRoleAssignment.deleted_at.is_(None))
+    q = db.query(Role)
+    total = q.count()
+    items = q.offset(skip).limit(limit).all()
+    return RolePage(total=total, skip=skip, limit=limit, items=items)
+
+
+# ------------------------------------------------------------------
+# Assignments
+# ------------------------------------------------------------------
+
+
+def _assignment_query(
+    db: Session,
+    current: CurrentUser,
+    user_id: Optional[uuid.UUID],
+    tenant_id: Optional[uuid.UUID],
+    active_only: bool,
+):
+    q = (
+        db.query(UserRoleAssignment)
+        .options(
+            joinedload(UserRoleAssignment.user),
+            joinedload(UserRoleAssignment.role),
+            joinedload(UserRoleAssignment.tenant),
+        )
+        .filter(UserRoleAssignment.deleted_at.is_(None))
+    )
 
     # Restrict visibility: PowerAdmin/Auditor see all; Admin sees their tenant;
     # others see only their own assignments.
@@ -75,28 +94,60 @@ def list_assignments(
             (UserRoleAssignment.valid_until.is_(None)) | (UserRoleAssignment.valid_until > now),
         )
 
-    assignments = q.offset(skip).limit(limit).all()
+    return q
 
-    result = []
-    for a in assignments:
-        role   = db.query(Role).filter(Role.id == a.role_id).first()
-        tenant = db.query(Tenant).filter(Tenant.id == a.tenant_id).first() if a.tenant_id else None
-        user   = db.query(User).filter(User.id == a.user_id).first()
-        result.append(RoleAssignmentOut(
-            id=a.id,
-            user_id=a.user_id,
-            username=user.username if user else None,
-            role_id=a.role_id,
-            role_name=role.name if role else None,
-            role_scope=role.scope if role else None,
-            tenant_id=a.tenant_id,
-            tenant_name=tenant.name if tenant else None,
-            valid_from=a.valid_from,
-            valid_until=a.valid_until,
-            is_active=a.is_active,
-            assigned_at=a.assigned_at,
-        ))
-    return result
+
+def _assignment_out(a: UserRoleAssignment) -> RoleAssignmentOut:
+    return RoleAssignmentOut(
+        id=a.id,
+        user_id=a.user_id,
+        username=a.user.username if a.user else None,
+        role_id=a.role_id,
+        role_name=a.role.name if a.role else None,
+        role_scope=a.role.scope if a.role else None,
+        tenant_id=a.tenant_id,
+        tenant_name=a.tenant.name if a.tenant else None,
+        valid_from=a.valid_from,
+        valid_until=a.valid_until,
+        is_active=a.is_active,
+        assigned_at=a.assigned_at,
+    )
+
+
+@router.get("/assignments", response_model=List[RoleAssignmentOut])
+def list_assignments(
+    user_id: Optional[uuid.UUID] = Query(None),
+    tenant_id: Optional[uuid.UUID] = Query(None),
+    active_only: bool = Query(True),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = _assignment_query(db, current, user_id, tenant_id, active_only)
+    assignments = q.offset(skip).limit(limit).all()
+    return [_assignment_out(a) for a in assignments]
+
+
+@router.get("/assignments/page", response_model=RoleAssignmentPage)
+def list_assignments_page(
+    user_id: Optional[uuid.UUID] = Query(None),
+    tenant_id: Optional[uuid.UUID] = Query(None),
+    active_only: bool = Query(True),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = _assignment_query(db, current, user_id, tenant_id, active_only)
+    total = q.count()
+    assignments = q.offset(skip).limit(limit).all()
+    return RoleAssignmentPage(
+        total=total,
+        skip=skip,
+        limit=limit,
+        items=[_assignment_out(a) for a in assignments],
+    )
 
 
 @router.post("/assignments", response_model=RoleAssignmentOut, status_code=status.HTTP_201_CREATED)

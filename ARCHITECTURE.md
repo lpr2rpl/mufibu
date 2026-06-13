@@ -48,6 +48,10 @@ Deployment:
 8. Routers still perform application-level permission checks for clearer
    errors and workflow-specific rules.
 
+Every HTTP response includes an `X-Request-ID` header.  The backend accepts an
+incoming `X-Request-ID` value or generates one, then logs request method, path,
+request id, and elapsed time.
+
 ## Important Boundaries
 
 The frontend is not a security boundary.  It hides unavailable actions for
@@ -58,6 +62,10 @@ are reflected after token refresh or a new login.
 
 The database is responsible for tenant isolation.  Router checks should mirror
 the database policies, but RLS is the final guard.
+
+List endpoints keep their original raw-array responses for compatibility.  New
+`/page` variants return `{total, skip, limit, items}` envelopes for clients that
+need pagination metadata.
 
 ## Core Domains
 

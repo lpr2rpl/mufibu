@@ -9,10 +9,13 @@ export const API_PATHS = {
   },
   tenants: {
     list: '/tenants',
+    page: '/tenants/page',
     detail: (tenantId) => `/tenants/${tenantId}`,
     accounts: (tenantId) => `/tenants/${tenantId}/accounts`,
+    accountsPage: (tenantId) => `/tenants/${tenantId}/accounts/page`,
     account: (tenantId, accountId) => `/tenants/${tenantId}/accounts/${accountId}`,
     journal: (tenantId) => `/tenants/${tenantId}/journal`,
+    journalPage: (tenantId) => `/tenants/${tenantId}/journal/page`,
     journalEntry: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}`,
     journalSubmit: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/submit`,
     journalApprove: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/approve`,
@@ -21,16 +24,20 @@ export const API_PATHS = {
   },
   users: {
     list: '/users',
+    page: '/users/page',
     detail: (userId) => `/users/${userId}`,
   },
   roles: {
     list: '/roles',
+    page: '/roles/page',
     assignments: '/roles/assignments',
+    assignmentsPage: '/roles/assignments/page',
     assignmentExtend: (assignmentId) => `/roles/assignments/${assignmentId}/extend`,
     assignmentRevoke: (assignmentId) => `/roles/assignments/${assignmentId}/revoke`,
   },
   audit: {
     list: '/audit',
+    page: '/audit/page',
   },
 };
 
@@ -51,4 +58,11 @@ export const API_PATHS = {
  * @typedef {Object} PageParams
  * @property {number=} skip
  * @property {number=} limit
+ *
+ * @template T
+ * @typedef {Object} Page
+ * @property {number} total
+ * @property {number} skip
+ * @property {number} limit
+ * @property {T[]} items
  */

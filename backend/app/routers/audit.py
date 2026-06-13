@@ -19,21 +19,18 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.database import get_db
 from app.models import AuditLog
-from app.schemas import AuditLogOut
+from app.schemas import AuditLogOut, AuditLogPage
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
 
-@router.get("", response_model=List[AuditLogOut])
-def list_audit_log(
-    tenant_id: Optional[uuid.UUID] = Query(None),
-    user_id: Optional[uuid.UUID] = Query(None),
-    action: Optional[str] = Query(None),
-    table_name: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    current: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
+def _audit_query(
+    db: Session,
+    current: CurrentUser,
+    tenant_id: Optional[uuid.UUID],
+    user_id: Optional[uuid.UUID],
+    action: Optional[str],
+    table_name: Optional[str],
 ):
     # Determine access level:
     #   Auditor / PowerAdmin : unrestricted read
@@ -42,7 +39,6 @@ def list_audit_log(
     #   Others               : denied
     is_global_reader = current.is_auditor() or current.is_power_admin()
 
-    # Check if user is an Officer for at least one tenant
     officer_tenant_ids = [
         r.get("tenant_id")
         for r in current._roles
@@ -59,9 +55,7 @@ def list_audit_log(
     q = db.query(AuditLog)
 
     if not is_global_reader:
-        # Officer: must filter by tenant; if no tenant_id param, scope to their tenants
         if tenant_id:
-            # Verify they are Officer for this specific tenant
             if str(tenant_id) not in officer_tenant_ids:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -81,4 +75,36 @@ def list_audit_log(
     if table_name:
         q = q.filter(AuditLog.table_name == table_name)
 
+    return q
+
+
+@router.get("", response_model=List[AuditLogOut])
+def list_audit_log(
+    tenant_id: Optional[uuid.UUID] = Query(None),
+    user_id: Optional[uuid.UUID] = Query(None),
+    action: Optional[str] = Query(None),
+    table_name: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = _audit_query(db, current, tenant_id, user_id, action, table_name)
     return q.order_by(AuditLog.occurred_at.desc()).offset(skip).limit(limit).all()
+
+
+@router.get("/page", response_model=AuditLogPage)
+def list_audit_log_page(
+    tenant_id: Optional[uuid.UUID] = Query(None),
+    user_id: Optional[uuid.UUID] = Query(None),
+    action: Optional[str] = Query(None),
+    table_name: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = _audit_query(db, current, tenant_id, user_id, action, table_name)
+    total = q.count()
+    items = q.order_by(AuditLog.occurred_at.desc()).offset(skip).limit(limit).all()
+    return AuditLogPage(total=total, skip=skip, limit=limit, items=items)

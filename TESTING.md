@@ -17,6 +17,12 @@ Run backend tests only:
 make backend-test
 ```
 
+Run backend syntax checks only:
+
+```sh
+make backend-syntax
+```
+
 Run frontend tests only:
 
 ```sh
@@ -53,6 +59,9 @@ and admin/audit navigation.
 
 `frontend/src/api/contracts.test.js` checks the frontend API path constants
 against the backend route shape used by routers.
+
+The contract tests include the paged list endpoints, whose response envelope is
+`total`, `skip`, `limit`, and `items`.
 
 ## Database Bootstrap Smoke Test
 

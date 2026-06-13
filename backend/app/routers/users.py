@@ -12,9 +12,10 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
+from app.auth.policies import require_power_admin
 from app.database import get_db
 from app.models import AuditLog, User
-from app.schemas import UserCreate, UserOut, UserUpdate
+from app.schemas import UserCreate, UserOut, UserPage, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -37,14 +38,30 @@ def list_users(
     return [current.user]
 
 
+@router.get("/page", response_model=UserPage)
+def list_users_page(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current.is_power_admin() or current.is_auditor():
+        q = db.query(User).filter(User.deleted_at.is_(None))
+        total = q.count()
+        items = q.offset(skip).limit(limit).all()
+        return UserPage(total=total, skip=skip, limit=limit, items=items)
+
+    items = [current.user] if skip == 0 else []
+    return UserPage(total=1, skip=skip, limit=limit, items=items[:limit])
+
+
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(
     body: UserCreate,
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current.is_power_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerAdmin role required")
+    require_power_admin(current)
 
     if db.query(User).filter(
         (User.username == body.username) | (User.email == body.email),
@@ -129,8 +146,7 @@ def soft_delete_user(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current.is_power_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerAdmin role required")
+    require_power_admin(current)
     user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

@@ -53,6 +53,12 @@ The audit log records login, logout, role assignment, tenant creation, account
 changes, journal workflow changes, and soft deletes.  Database rules and RLS
 policies prevent updates and hard deletes on audit rows.
 
+## Request IDs
+
+Each request receives an `X-Request-ID` value.  Clients can provide the header,
+or the backend generates a UUID.  The same id is returned in the response and
+logged with the request summary.
+
 ## Token Revocation
 
 Tokens are stateless.  A role revoked in the database can remain effective

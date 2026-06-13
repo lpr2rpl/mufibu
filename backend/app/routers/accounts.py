@@ -17,30 +17,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
+from app.auth.policies import require_account_read, require_account_write
 from app.database import get_db
 from app.models import Account, AuditLog
-from app.schemas import AccountCreate, AccountOut, AccountUpdate
+from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
 
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
-
-
-def _require_read(current: CurrentUser, tenant_id: uuid.UUID):
-    """
-    Reader-class + Officer + Admin + Auditor + PowerAdmin may read accounts.
-    Officer is included because they need account names for journal entry display.
-    """
-    if not (
-        current.is_reader(tenant_id)        # Reader/Writer/PowerUser/Approver/Officer + Auditor
-        or current.is_admin(tenant_id)       # Admin (role management UI)
-        or current.is_power_admin()
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
-
-def _require_write(current: CurrentUser, tenant_id: uuid.UUID):
-    if not (current.is_power_user(tenant_id) or current.is_admin(tenant_id)
-            or current.is_power_admin()):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerUser or Admin role required")
 
 
 @router.get("", response_model=List[AccountOut])
@@ -53,13 +35,34 @@ def list_accounts(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_read(current, tenant_id)
+    require_account_read(current, tenant_id)
     q = db.query(Account).filter(Account.tenant_id == tenant_id, Account.deleted_at.is_(None))
     if active_only:
         q = q.filter(Account.is_active == True)
     if account_type:
         q = q.filter(Account.account_type == account_type)
     return q.order_by(Account.account_number).offset(skip).limit(limit).all()
+
+
+@router.get("/page", response_model=AccountPage)
+def list_accounts_page(
+    tenant_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+    account_type: Optional[str] = Query(None),
+    active_only: bool = Query(True),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_account_read(current, tenant_id)
+    q = db.query(Account).filter(Account.tenant_id == tenant_id, Account.deleted_at.is_(None))
+    if active_only:
+        q = q.filter(Account.is_active == True)
+    if account_type:
+        q = q.filter(Account.account_type == account_type)
+    total = q.count()
+    items = q.order_by(Account.account_number).offset(skip).limit(limit).all()
+    return AccountPage(total=total, skip=skip, limit=limit, items=items)
 
 
 @router.post("", response_model=AccountOut, status_code=status.HTTP_201_CREATED)
@@ -69,7 +72,7 @@ def create_account(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_write(current, tenant_id)
+    require_account_write(current, tenant_id)
     if db.query(Account).filter(
         Account.tenant_id == tenant_id,
         Account.account_number == body.account_number,
@@ -108,7 +111,7 @@ def get_account(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_read(current, tenant_id)
+    require_account_read(current, tenant_id)
     acct = db.query(Account).filter(
         Account.id == account_id, Account.tenant_id == tenant_id, Account.deleted_at.is_(None)
     ).first()
@@ -125,7 +128,7 @@ def update_account(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_write(current, tenant_id)
+    require_account_write(current, tenant_id)
     acct = db.query(Account).filter(
         Account.id == account_id, Account.tenant_id == tenant_id, Account.deleted_at.is_(None)
     ).first()
@@ -161,7 +164,7 @@ def soft_delete_account(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_write(current, tenant_id)
+    require_account_write(current, tenant_id)
     acct = db.query(Account).filter(
         Account.id == account_id, Account.tenant_id == tenant_id, Account.deleted_at.is_(None)
     ).first()

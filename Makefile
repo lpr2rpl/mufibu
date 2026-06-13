@@ -1,7 +1,10 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: backend-test frontend-test frontend-build db-smoke ci
+.PHONY: backend-syntax backend-test frontend-test frontend-build db-smoke ci
+
+backend-syntax:
+	$(PYTHON) -c "import pathlib; [compile(p.read_text(), str(p), 'exec') for p in pathlib.Path('backend/app').rglob('*.py')]"
 
 backend-test:
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=backend $(PYTHON) -m unittest discover -s backend/tests -p 'test_*.py'
@@ -15,4 +18,4 @@ frontend-build:
 db-smoke:
 	./scripts/db_bootstrap_smoke.sh
 
-ci: backend-test frontend-test frontend-build
+ci: backend-syntax backend-test frontend-test frontend-build

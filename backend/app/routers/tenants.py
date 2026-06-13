@@ -9,16 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
+from app.auth.policies import require_power_admin
 from app.database import get_db
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
-from app.schemas import TenantCreate, TenantOut
+from app.schemas import TenantCreate, TenantOut, TenantPage
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
-
-
-def _require_power_admin(current: CurrentUser):
-    if not current.is_power_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerAdmin role required")
 
 
 @router.get("", response_model=List[TenantOut])
@@ -39,13 +35,28 @@ def list_tenants(
     )
 
 
+@router.get("/page", response_model=TenantPage)
+def list_tenants_page(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not (current.is_power_admin() or current.is_auditor()):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    q = db.query(Tenant).filter(Tenant.deleted_at.is_(None))
+    total = q.count()
+    items = q.offset(skip).limit(limit).all()
+    return TenantPage(total=total, skip=skip, limit=limit, items=items)
+
+
 @router.post("", response_model=TenantOut, status_code=status.HTTP_201_CREATED)
 def create_tenant(
     body: TenantCreate,
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_power_admin(current)
+    require_power_admin(current)
 
     if db.query(Tenant).filter(Tenant.name == body.name, Tenant.deleted_at.is_(None)).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant name already exists")
@@ -92,7 +103,7 @@ def soft_delete_tenant(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_power_admin(current)
+    require_power_admin(current)
     from datetime import datetime, timezone
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first()
     if not tenant:

@@ -51,16 +51,20 @@ export const getMe = () => api.get(API_PATHS.auth.me);
 
 // Tenants
 export const getTenants = () => api.get(API_PATHS.tenants.list);
+export const getTenantsPage = (params) => api.get(API_PATHS.tenants.page, { params });
 export const createTenant = (data) => api.post(API_PATHS.tenants.list, data);
 
 // Users
 export const getUsers = () => api.get(API_PATHS.users.list);
+export const getUsersPage = (params) => api.get(API_PATHS.users.page, { params });
 export const createUser = (data) => api.post(API_PATHS.users.list, data);
 export const updateUser = (id, data) => api.patch(API_PATHS.users.detail(id), data);
 
 // Roles
 export const getRoles = () => api.get(API_PATHS.roles.list);
+export const getRolesPage = (params) => api.get(API_PATHS.roles.page, { params });
 export const getAssignments = (params) => api.get(API_PATHS.roles.assignments, { params });
+export const getAssignmentsPage = (params) => api.get(API_PATHS.roles.assignmentsPage, { params });
 export const assignRole = (data) => api.post(API_PATHS.roles.assignments, data);
 export const extendAssignment = (id, data) => api.patch(API_PATHS.roles.assignmentExtend(id), data);
 export const revokeAssignment = (id, data) => api.patch(API_PATHS.roles.assignmentRevoke(id), data);
@@ -68,6 +72,8 @@ export const revokeAssignment = (id, data) => api.patch(API_PATHS.roles.assignme
 // Accounts
 export const getAccounts = (tenantId, params) =>
   api.get(API_PATHS.tenants.accounts(tenantId), { params });
+export const getAccountsPage = (tenantId, params) =>
+  api.get(API_PATHS.tenants.accountsPage(tenantId), { params });
 export const createAccount = (tenantId, data) =>
   api.post(API_PATHS.tenants.accounts(tenantId), data);
 export const updateAccount = (tenantId, accountId, data) =>
@@ -76,6 +82,8 @@ export const updateAccount = (tenantId, accountId, data) =>
 // Journal
 export const getJournalEntries = (tenantId, params) =>
   api.get(API_PATHS.tenants.journal(tenantId), { params });
+export const getJournalEntriesPage = (tenantId, params) =>
+  api.get(API_PATHS.tenants.journalPage(tenantId), { params });
 export const getJournalEntry = (tenantId, entryId) =>
   api.get(API_PATHS.tenants.journalEntry(tenantId, entryId));
 export const createJournalEntry = (tenantId, data) =>
@@ -93,5 +101,6 @@ export const postEntry = (tenantId, entryId) =>
 
 // Audit
 export const getAuditLog = (params) => api.get(API_PATHS.audit.list, { params });
+export const getAuditLogPage = (params) => api.get(API_PATHS.audit.page, { params });
 
 export default api;
