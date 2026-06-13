@@ -6,8 +6,16 @@ tests pin the rule that approval-required entries cannot be posted until they
 are approved, while non-approval entries may be posted directly from draft.
 """
 import unittest
+from collections import namedtuple
+from decimal import Decimal
 
-from app.journal_workflow import postable_error
+from app.journal_workflow import lines_balance_error, postable_error
+
+Line = namedtuple("Line", ["debit_credit", "amount"])
+
+
+def _d(value):
+    return Decimal(str(value))
 
 
 class PostableRuleTests(unittest.TestCase):
@@ -33,6 +41,42 @@ class PostableRuleTests(unittest.TestCase):
     def test_already_posted_is_blocked(self):
         self.assertIsNotNone(postable_error("posted", requires_approval=False))
         self.assertIsNotNone(postable_error("posted", requires_approval=True))
+
+
+class LinesBalanceTests(unittest.TestCase):
+    def test_no_lines_is_balanced(self):
+        self.assertIsNone(lines_balance_error(None))
+        self.assertIsNone(lines_balance_error([]))
+
+    def test_balanced_two_line_entry(self):
+        lines = [Line("debit", _d("100.00")), Line("credit", _d("100.00"))]
+        self.assertIsNone(lines_balance_error(lines))
+
+    def test_balanced_split_entry(self):
+        lines = [
+            Line("debit", _d("70.00")),
+            Line("debit", _d("30.00")),
+            Line("credit", _d("100.00")),
+        ]
+        self.assertIsNone(lines_balance_error(lines))
+
+    def test_unbalanced_entry_is_rejected(self):
+        lines = [Line("debit", _d("100.00")), Line("credit", _d("99.99"))]
+        self.assertIsNotNone(lines_balance_error(lines))
+
+    def test_single_sided_entry_is_rejected(self):
+        # Only debits -> credit total is zero -> unbalanced.
+        lines = [Line("debit", _d("50.00")), Line("debit", _d("50.00"))]
+        self.assertIsNotNone(lines_balance_error(lines))
+
+    def test_decimal_precision_does_not_false_positive(self):
+        lines = [
+            Line("debit", _d("33.33")),
+            Line("debit", _d("33.33")),
+            Line("debit", _d("33.34")),
+            Line("credit", _d("100.00")),
+        ]
+        self.assertIsNone(lines_balance_error(lines))
 
 
 if __name__ == "__main__":

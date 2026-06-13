@@ -27,7 +27,7 @@ from app.auth.policies import (
     require_journal_writer,
 )
 from app.database import get_db
-from app.journal_workflow import postable_error
+from app.journal_workflow import lines_balance_error, postable_error
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
@@ -152,6 +152,10 @@ def create_entry(
     db: Session = Depends(get_db),
 ):
     require_journal_writer(current, tenant_id)
+
+    balance_err = lines_balance_error(body.lines)
+    if balance_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=balance_err)
 
     for acc_id in (body.main_account_id, body.contra_account_id):
         acc = db.query(Account).filter(

@@ -60,9 +60,16 @@ Strengths observed:
       `LOGIN_MAX_FAILED_ATTEMPTS` failures the account locks for
       `LOGIN_LOCKOUT_MINUTES` and `/auth/login` returns 429 with `Retry-After`.
       DB-backed so it holds across workers; timing equalized for unknown users.
-- [ ] Add a DB-level (or service-level) double-entry balance check for split
-      bookings.  `journal_entry_lines` has no constraint ensuring debits equal
-      credits; unbalanced multi-line entries can be stored.
+- [x] Add a double-entry balance check for split bookings.  Enforced at the
+      service layer by `app/journal_workflow.py:lines_balance_error` (called in
+      `create_entry`): when split `lines` are present, total debits must equal
+      total credits or the request is rejected with 400.  Header-only entries
+      are balanced by construction.
+- [ ] Defense-in-depth: add a DB-level deferred constraint trigger on
+      `journal_entry_lines` mirroring `lines_balance_error`, so the invariant
+      holds even for writes that bypass the service layer.  Deferred to keep it
+      out of this change until it can be validated against a live PostgreSQL
+      instance (interaction with FORCE ROW LEVEL SECURITY needs verification).
 
 ### P2 - Robustness and Operability
 
