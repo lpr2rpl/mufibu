@@ -49,12 +49,11 @@ Strengths observed:
       (`backend/app/routers/journal.py`) now takes a transaction-scoped
       `pg_advisory_xact_lock` keyed on the tenant, serializing the
       read-then-insert window so concurrent creates cannot collide.
-- [ ] Re-examine `post_entry` allowing `draft` to be posted directly
-      (`backend/app/routers/journal.py`).  The docstring says "Post an approved
-      entry", but `status in ("approved", "draft")` lets a PowerUser bypass the
-      four-eyes workflow for entries that were never submitted.  Confirm this is
-      intended or restrict to `approved` (and entries that do not require
-      approval).
+- [x] Re-examine `post_entry` allowing `draft` to be posted directly
+      (`backend/app/routers/journal.py`).  Posting is now gated by
+      `app/journal_workflow.py:postable_error`: entries that require approval
+      must reach `approved` first (four-eyes cannot be skipped), while entries
+      that do not require approval may still post from `draft`.
 - [ ] Add brute-force protection on login (rate limiting / lockout / backoff).
       There is currently no throttling on the auth endpoint.
 - [ ] Add a DB-level (or service-level) double-entry balance check for split

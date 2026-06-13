@@ -27,6 +27,7 @@ from app.auth.policies import (
     require_journal_writer,
 )
 from app.database import get_db
+from app.journal_workflow import postable_error
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
@@ -391,12 +392,18 @@ def post_entry(
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Post an approved entry (finalise). Requires PowerUser."""
+    """
+    Post an entry (finalise). Requires PowerUser.
+
+    Entries that require approval must be in the 'approved' state first, so the
+    four-eyes workflow cannot be bypassed; entries that do not require approval
+    may be posted directly from draft.
+    """
     require_journal_power_user(current, tenant_id)
     entry = _get_entry(db, tenant_id, entry_id)
-    if entry.status not in ("approved", "draft"):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Only approved or draft entries can be posted")
+    err = postable_error(entry.status, entry.requires_approval)
+    if err:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=err)
 
     entry.status = "posted"
     entry.posted_at = datetime.now(timezone.utc)
