@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
@@ -48,7 +48,21 @@ def _get_entry(db: Session, tenant_id: uuid.UUID, entry_id: uuid.UUID) -> Journa
 
 
 def _next_entry_number(db: Session, tenant_id: uuid.UUID) -> str:
-    """Generate sequential entry number per tenant: YYYYNNNNN."""
+    """
+    Generate a sequential entry number per tenant: YYYYNNNNN.
+
+    Two concurrent creates could otherwise read the same max and generate the
+    same number (the UNIQUE (tenant_id, entry_number) constraint would reject
+    the loser with a 409).  A transaction-scoped advisory lock keyed on the
+    tenant serializes the read-then-insert window per tenant; the lock is held
+    until this transaction commits or rolls back, so the next waiter sees the
+    just-inserted row.  hashtext() maps the key to the bigint pg_advisory_xact_lock
+    expects.
+    """
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+        {"k": f"journal_entry_number:{tenant_id}"},
+    )
     year = datetime.now(timezone.utc).year
     prefix = str(year)
     last = (

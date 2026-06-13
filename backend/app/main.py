@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
-from app.logging_context import RequestIdFilter, clear_request_id, set_request_id
+from app.logging_context import RequestIdFilter, clear_request_context, set_request_context
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.rls import BYPASS_CONTEXT, set_rls_context
 from app.routers import accounts, audit, auth, journal, roles, tenants, users
@@ -127,7 +127,9 @@ app.add_middleware(
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-    set_request_id(request_id)
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    set_request_context(request_id, client_ip, user_agent)
     start = time.perf_counter()
     try:
         response = await call_next(request)
@@ -140,7 +142,7 @@ async def request_context_middleware(request: Request, call_next):
             request_id,
             elapsed_ms,
         )
-        clear_request_id()
+        clear_request_context()
     response.headers["X-Request-ID"] = request_id
     return response
 

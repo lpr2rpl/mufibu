@@ -83,3 +83,32 @@ def _inject_rls_context(session: Session, transaction, connection) -> None:
     _set_local(connection, "app.is_auditor",          "true" if ctx.is_auditor    else "false")
     _set_local(connection, "app.is_power_admin",      "true" if ctx.is_power_admin else "false")
     _set_local(connection, "app.bypass_rls",          "true" if ctx.bypass_rls    else "false")
+
+
+# ---------------------------------------------------------------------------
+# Audit metadata: stamp ip_address, user_agent, and session_id (request
+# correlation id) onto every AuditLog row before it is flushed, so forensic
+# fields are recorded for ALL audited actions rather than only login/logout.
+# Values are read from the request-scoped context populated by the HTTP
+# middleware.  Fields explicitly set by a caller are left untouched, and rows
+# created outside a request (e.g. startup seeding) simply keep NULLs.
+# ---------------------------------------------------------------------------
+
+@event.listens_for(SessionLocal, "before_flush")
+def _stamp_audit_metadata(session: Session, flush_context, instances) -> None:
+    # Deferred imports avoid circular dependencies at module load time.
+    from app.logging_context import audit_context_fields
+    from app.models import AuditLog
+
+    fields = None
+    for obj in session.new:
+        if not isinstance(obj, AuditLog):
+            continue
+        if fields is None:
+            fields = audit_context_fields()
+        if obj.ip_address is None:
+            obj.ip_address = fields["ip_address"]
+        if obj.user_agent is None:
+            obj.user_agent = fields["user_agent"]
+        if obj.session_id is None:
+            obj.session_id = fields["session_id"]

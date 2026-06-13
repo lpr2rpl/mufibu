@@ -9,7 +9,7 @@ context immediately after the password is verified.
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -26,20 +26,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def _audit(db: Session, user: User, action: str, request: Request, notes: str = ""):
-    ip = request.client.host if request.client else None
-    ua = request.headers.get("user-agent")
+def _audit(db: Session, user: User, action: str, notes: str = ""):
+    # ip_address, user_agent, and session_id are stamped centrally by the
+    # before_flush event in app/database.py from the request context.
     db.add(AuditLog(
         user_id=user.id,
         action=action,
-        ip_address=ip,
-        user_agent=ua,
         notes=notes,
     ))
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(body: LoginRequest, db: Session = Depends(get_db)):
     # Activate bypass so the RLS after_begin event allows the user lookup.
     # The bypass is intentional here: we need to find the user BEFORE we can
     # build a proper RLS context (chicken-and-egg at authentication time).
@@ -64,7 +62,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
     token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
 
-    _audit(db, user, "LOGIN", request)
+    _audit(db, user, "LOGIN")
     db.commit()
 
     return TokenResponse(
@@ -106,8 +104,8 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-def logout(request: Request, current: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    _audit(db, current.user, "LOGOUT", request)
+def logout(current: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    _audit(db, current.user, "LOGOUT")
     db.commit()
     return {"detail": "Logged out"}
 

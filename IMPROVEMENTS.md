@@ -40,15 +40,15 @@ Strengths observed:
       held raw Unicode glyphs (box, multiplication sign, arrows, em dash,
       check/cross); replaced with ASCII-source equivalents and guarded by
       `scripts/ascii_check.sh` in `make ci`.  See "ASCII7 Policy".
-- [ ] Capture `ip_address`, `user_agent`, and `session_id` for all audit
-      writes, not just login/logout.  These columns exist in `audit_log` but
-      are only populated in `backend/app/routers/auth.py`; journal, account, and
-      role-assignment audit rows leave them NULL, weakening forensic value.
-- [ ] Make journal entry numbering concurrency-safe.  `_next_entry_number`
-      (`backend/app/routers/journal.py`) reads-then-writes; two concurrent
-      creates can collide.  The `UNIQUE (tenant_id, entry_number)` constraint
-      turns this into a 409 with no retry.  Use a per-tenant sequence or a
-      retry-on-conflict loop.
+- [x] Capture `ip_address`, `user_agent`, and `session_id` for all audit
+      writes, not just login/logout.  A `before_flush` event in
+      `backend/app/database.py` now stamps these onto every `AuditLog` row from
+      the request context populated by the HTTP middleware; `session_id` holds
+      the per-request correlation id (X-Request-ID) since tokens are stateless.
+- [x] Make journal entry numbering concurrency-safe.  `_next_entry_number`
+      (`backend/app/routers/journal.py`) now takes a transaction-scoped
+      `pg_advisory_xact_lock` keyed on the tenant, serializing the
+      read-then-insert window so concurrent creates cannot collide.
 - [ ] Re-examine `post_entry` allowing `draft` to be posted directly
       (`backend/app/routers/journal.py`).  The docstring says "Post an approved
       entry", but `status in ("approved", "draft")` lets a PowerUser bypass the
