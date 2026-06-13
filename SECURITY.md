@@ -59,6 +59,22 @@ Each request receives an `X-Request-ID` value.  Clients can provide the header,
 or the backend generates a UUID.  The same id is returned in the response and
 logged with the request summary.
 
+## Login Brute-Force Throttling
+
+Failed logins are counted per user on the `users` table
+(`failed_login_count`, `locked_until`, `last_failed_login_at`).  After
+`LOGIN_MAX_FAILED_ATTEMPTS` consecutive failures the account is locked for
+`LOGIN_LOCKOUT_MINUTES`; login then returns `429 Too Many Requests` with a
+`Retry-After` header until the window elapses.  A successful login resets the
+counter.
+
+State lives in the database, not process memory, so the lockout is consistent
+across all Gunicorn workers and survives restarts.  When the supplied
+identifier matches no user, the password is still verified against a fixed
+dummy hash so response timing does not reveal whether an account exists.
+Failed attempts and lockouts are written to the backend log with the request
+id; the audit log records successful logins.
+
 ## Token Revocation
 
 Tokens are stateless.  A role revoked in the database can remain effective

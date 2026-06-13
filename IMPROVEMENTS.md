@@ -54,8 +54,12 @@ Strengths observed:
       `app/journal_workflow.py:postable_error`: entries that require approval
       must reach `approved` first (four-eyes cannot be skipped), while entries
       that do not require approval may still post from `draft`.
-- [ ] Add brute-force protection on login (rate limiting / lockout / backoff).
-      There is currently no throttling on the auth endpoint.
+- [x] Add brute-force protection on login (rate limiting / lockout / backoff).
+      Per-user lockout persisted on the `users` table
+      (`app/auth/login_throttle.py`, migration 003): after
+      `LOGIN_MAX_FAILED_ATTEMPTS` failures the account locks for
+      `LOGIN_LOCKOUT_MINUTES` and `/auth/login` returns 429 with `Retry-After`.
+      DB-backed so it holds across workers; timing equalized for unknown users.
 - [ ] Add a DB-level (or service-level) double-entry balance check for split
       bookings.  `journal_entry_lines` has no constraint ensuring debits equal
       credits; unbalanced multi-line entries can be stored.

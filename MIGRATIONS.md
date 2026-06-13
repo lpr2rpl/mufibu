@@ -9,6 +9,8 @@ migration files.
   views, seed role catalog, and audit immutability rules.
 - `database/migrations/002_rls_officer.sql`: idempotent RLS migration and
   Officer role support.
+- `database/migrations/003_login_throttle.sql`: idempotent migration adding
+  per-user login brute-force throttle columns.
 
 ## Apply Order
 
@@ -17,9 +19,12 @@ Run the base schema first, then migrations in numeric order:
 ```sh
 psql -v ON_ERROR_STOP=1 -f database/schema.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/002_rls_officer.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/003_login_throttle.sql
 ```
 
-The setup script does this in its `schema` step.
+The setup script and the smoke test apply every file in
+`database/migrations` in numeric order, so new migrations are picked up
+automatically.
 
 ## Smoke Test
 

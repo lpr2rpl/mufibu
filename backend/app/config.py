@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Login brute-force throttling (per-user lockout, persisted on users table)
+    LOGIN_MAX_FAILED_ATTEMPTS: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost", "http://localhost:80", "http://localhost:3000"]
 

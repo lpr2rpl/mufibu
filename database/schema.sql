@@ -54,7 +54,11 @@ CREATE TABLE users (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by    UUID        REFERENCES users(id),
     deleted_at    TIMESTAMPTZ,
-    deleted_by    UUID        REFERENCES users(id)
+    deleted_by    UUID        REFERENCES users(id),
+    -- Login brute-force throttling state (see migration 003)
+    failed_login_count   INTEGER     NOT NULL DEFAULT 0,
+    locked_until         TIMESTAMPTZ,
+    last_failed_login_at TIMESTAMPTZ
 );
 
 -- Now add tenant FK back-references

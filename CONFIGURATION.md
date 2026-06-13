@@ -43,6 +43,18 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
 Roles are embedded in JWTs.  Shorter access-token lifetimes reduce the time a
 revoked role can remain effective.
 
+## Login Throttling
+
+```sh
+LOGIN_MAX_FAILED_ATTEMPTS=5
+LOGIN_LOCKOUT_MINUTES=15
+```
+
+After `LOGIN_MAX_FAILED_ATTEMPTS` consecutive failed logins, an account is
+locked for `LOGIN_LOCKOUT_MINUTES` and `/auth/login` returns `429` with a
+`Retry-After` header.  A successful login resets the counter.  See
+`SECURITY.md` for details.
+
 ## CORS
 
 `CORS_ORIGINS` is parsed as a list by Pydantic settings.

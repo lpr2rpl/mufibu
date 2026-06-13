@@ -66,6 +66,13 @@ class User(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     deleted_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
+    # Login brute-force throttling state (see app/auth/login_throttle.py)
+    failed_login_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_failed_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     role_assignments: Mapped[List["UserRoleAssignment"]] = relationship(
         back_populates="user", foreign_keys="UserRoleAssignment.user_id"
     )

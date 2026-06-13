@@ -7,7 +7,7 @@
 # Steps (may be combined, run in order):
 #   deps       Install system packages + Node.js 20
 #   postgres   Create DB user/database; start PostgreSQL
-#   schema     Apply schema.sql and migration 002
+#   schema     Apply schema.sql and all migrations in database/migrations
 #   venv       Create Python virtualenv + install dependencies
 #   config     Write backend environment file
 #   frontend   npm install + build + deploy to web root
@@ -262,10 +262,9 @@ step_schema() {
     step "Applying database schema and migrations"
 
     SCHEMA_FILE="${SRC_DIR}/database/schema.sql"
-    MIG002="${SRC_DIR}/database/migrations/002_rls_officer.sql"
+    MIG_DIR="${SRC_DIR}/database/migrations"
 
     [ -r "$SCHEMA_FILE" ] || die "Schema file not found: $SCHEMA_FILE"
-    [ -r "$MIG002"      ] || die "Migration not found: $MIG002"
 
     if [ "$DRY_RUN" -eq 0 ]; then
         PGPASSWORD="${DB_PASS}" psql \
@@ -273,13 +272,19 @@ step_schema() {
             -f "$SCHEMA_FILE" 2>/dev/null || true
         ok "Base schema applied."
 
-        PGPASSWORD="${DB_PASS}" psql \
-            -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" \
-            -f "$MIG002"
-        ok "Migration 002 applied."
+        # Apply every migration in numeric order (002, 003, ...).
+        for MIG in "$MIG_DIR"/*.sql; do
+            [ -r "$MIG" ] || continue
+            PGPASSWORD="${DB_PASS}" psql \
+                -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" \
+                -f "$MIG"
+            ok "Migration $(basename "$MIG") applied."
+        done
     else
         printf "${YELLOW}[DRY]${RESET}   psql ... -f %s\n" "$SCHEMA_FILE"
-        printf "${YELLOW}[DRY]${RESET}   psql ... -f %s\n" "$MIG002"
+        for MIG in "$MIG_DIR"/*.sql; do
+            printf "${YELLOW}[DRY]${RESET}   psql ... -f %s\n" "$MIG"
+        done
     fi
 
     ok "Schema up to date."
