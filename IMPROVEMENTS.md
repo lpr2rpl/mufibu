@@ -80,9 +80,9 @@ Strengths observed:
 - [ ] Replace the committed `frontend/build/` output with a build step.
       Shipping compiled artifacts in git risks source/build drift (the bundle
       can lag source edits) and bloats the repo.  Build in CI / deploy instead.
-- [ ] Reconcile `scripts/ci.sh` with `make ci`.  `make ci` runs
-      `backend-syntax` first; `scripts/ci.sh` omits it.  Align them so both
-      entry points run the same checks.
+- [x] Reconcile `scripts/ci.sh` with `make ci`.  `scripts/ci.sh` now `exec`s
+      `make ci`, so the check list lives in one place and the two entry points
+      cannot drift.
 - [ ] Introduce Alembic.  `MIGRATIONS.md` notes Alembic is a dependency but no
       environment exists; raw SQL files are authoritative.  Add an Alembic env
       or remove the unused dependency to avoid confusion.

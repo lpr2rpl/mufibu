@@ -1,7 +1,8 @@
 #!/bin/sh
+# Single entry point for CI. Delegates to `make ci` so there is one source of
+# truth for the check list (ascii-check, backend-syntax, backend-test,
+# frontend-test, frontend-build) and the two cannot drift apart.
 set -eu
 
-make ascii-check
-make backend-test
-make frontend-test
-make frontend-build
+cd "$(dirname "$0")/.."
+exec make ci
