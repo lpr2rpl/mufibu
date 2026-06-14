@@ -89,9 +89,13 @@ Strengths observed:
 - [ ] Add a token revocation path (denylist or session table) for immediate
       revocation.  Documented as future work in `SECURITY.md`; stateless tokens
       keep a revoked role effective until expiry.
-- [ ] Tighten CORS.  `backend/app/main.py` uses `allow_methods=["*"]` and
-      `allow_headers=["*"]` with `allow_credentials=True`.  Narrow methods and
-      headers to what the client actually uses.
+- [x] Tighten CORS.  `backend/app/main.py` previously used
+      `allow_methods=["*"]` and `allow_headers=["*"]` with
+      `allow_credentials=True`.  Now restricted to the methods
+      (`GET, POST, PATCH, DELETE, OPTIONS`) and headers
+      (`Authorization, Content-Type, X-Request-ID`) the client actually uses,
+      and exposes `X-Request-ID`.  Wildcards are also not honored by browsers
+      for credentialed requests, so the explicit allowlist is more correct.
 
 ### P3 - Maintainability and Documentation
 

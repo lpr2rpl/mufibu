@@ -119,8 +119,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Restrict to the methods and headers the client actually uses rather than
+    # the "*" wildcard.  With allow_credentials=True a wildcard is both broad
+    # and (per the CORS spec) not honored by browsers for credentialed
+    # requests, so an explicit allowlist is also more correct.
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 

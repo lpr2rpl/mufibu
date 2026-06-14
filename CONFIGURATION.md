@@ -67,6 +67,14 @@ CORS_ORIGINS=["http://localhost","https://mufibu.example.com"]
 
 Restrict this list to trusted browser origins in production.
 
+`CORS_ORIGINS` controls the allowed origins.  The allowed methods
+(`GET, POST, PATCH, DELETE, OPTIONS`) and request headers
+(`Authorization, Content-Type, X-Request-ID`) are fixed in
+`backend/app/main.py` to what the client uses; responses expose
+`X-Request-ID`.  Requests are credentialed (`allow_credentials=True`), so the
+origin list must be explicit - a `*` origin is not honored by browsers for
+credentialed requests.
+
 ## Debug Mode
 
 ```sh
