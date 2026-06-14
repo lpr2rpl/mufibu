@@ -77,9 +77,13 @@ Strengths observed:
 
 ### P2 - Robustness and Operability
 
-- [ ] Replace the committed `frontend/build/` output with a build step.
-      Shipping compiled artifacts in git risks source/build drift (the bundle
-      can lag source edits) and bloats the repo.  Build in CI / deploy instead.
+- [x] Replace the committed `frontend/build/` output with a build step.
+      Re-verified: `frontend/build/` was never tracked in git history and is
+      already covered by `.gitignore`; no compiled artifacts are tracked
+      anywhere.  The bundle is produced fresh by CI (`make frontend-build`) and
+      by deploy (`setup.sh` runs `npm install && npm run build`).  The original
+      finding was a false positive - the local build directory was observed on
+      disk and assumed committed.  No source/build drift risk exists.
 - [x] Reconcile `scripts/ci.sh` with `make ci`.  `scripts/ci.sh` now `exec`s
       `make ci`, so the check list lives in one place and the two entry points
       cannot drift.
