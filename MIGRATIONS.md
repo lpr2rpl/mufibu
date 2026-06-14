@@ -58,8 +58,10 @@ and verifies that roles exist.
 - Keep role names aligned with backend and frontend permission helpers.
 - Back up production data before applying migrations.
 
-## Known Direction
+## Approach
 
-Alembic is listed as a backend dependency, but this repository does not yet
-include an Alembic environment.  Until that exists, SQL files in `database/`
-are the authoritative migration artifacts.
+Plain, idempotent SQL files in `database/` are the authoritative migration
+artifacts, applied in numeric order by `setup.sh` and `make db-smoke`.  A
+migration framework (such as Alembic) is intentionally not used; the unused
+`alembic` dependency was removed to avoid implying an environment that does not
+exist.  Revisit this if migrations outgrow hand-managed ordering.

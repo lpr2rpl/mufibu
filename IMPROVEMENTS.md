@@ -87,9 +87,10 @@ Strengths observed:
 - [x] Reconcile `scripts/ci.sh` with `make ci`.  `scripts/ci.sh` now `exec`s
       `make ci`, so the check list lives in one place and the two entry points
       cannot drift.
-- [ ] Introduce Alembic.  `MIGRATIONS.md` notes Alembic is a dependency but no
-      environment exists; raw SQL files are authoritative.  Add an Alembic env
-      or remove the unused dependency to avoid confusion.
+- [x] Resolve the unused Alembic dependency.  Confirmed `alembic` had no
+      environment, ini, or code references; removed it from
+      `backend/requirements.txt` and reframed the `MIGRATIONS.md` note around the
+      intentional hand-managed SQL-migration approach.
 - [x] Add a token revocation path for immediate revocation.  Implemented a
       per-user `tokens_valid_after` watermark (migration 006,
       `app/auth/token_revocation.py`): tokens carry `iat` and any token issued
