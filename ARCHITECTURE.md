@@ -89,6 +89,9 @@ Journal entries:
 
 - Double-entry booking record with main and contra accounts.
 - Optional split lines are supported by `journal_entry_lines`.
+- Split lines must balance (total debits equal total credits).  This is checked
+  at the service layer on create and enforced again by a deferred constraint
+  trigger at the database level.
 - Entries move through draft, pending approval, approved, rejected, and posted
   states.
 

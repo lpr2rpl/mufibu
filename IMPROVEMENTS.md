@@ -65,11 +65,15 @@ Strengths observed:
       `create_entry`): when split `lines` are present, total debits must equal
       total credits or the request is rejected with 400.  Header-only entries
       are balanced by construction.
-- [ ] Defense-in-depth: add a DB-level deferred constraint trigger on
+- [x] Defense-in-depth: DB-level deferred constraint trigger on
       `journal_entry_lines` mirroring `lines_balance_error`, so the invariant
-      holds even for writes that bypass the service layer.  Deferred to keep it
-      out of this change until it can be validated against a live PostgreSQL
-      instance (interaction with FORCE ROW LEVEL SECURITY needs verification).
+      holds even for writes that bypass the service layer
+      (`database/migrations/004_journal_balance.sql`).  Validated against a live
+      PostgreSQL 17 instance, including the FORCE ROW LEVEL SECURITY case with a
+      non-superuser owner and a SECURITY DEFINER trigger function: the writer's
+      per-transaction RLS context keeps the entry's lines visible to the
+      trigger's SUM, so balanced entries commit and unbalanced ones abort at
+      COMMIT with correct totals.
 
 ### P2 - Robustness and Operability
 
