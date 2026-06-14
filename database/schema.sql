@@ -58,7 +58,10 @@ CREATE TABLE users (
     -- Login brute-force throttling state (see migration 003)
     failed_login_count   INTEGER     NOT NULL DEFAULT 0,
     locked_until         TIMESTAMPTZ,
-    last_failed_login_at TIMESTAMPTZ
+    last_failed_login_at TIMESTAMPTZ,
+    -- Token revocation watermark (see migration 006): tokens issued before this
+    -- instant are rejected.
+    tokens_valid_after   TIMESTAMPTZ
 );
 
 -- Now add tenant FK back-references

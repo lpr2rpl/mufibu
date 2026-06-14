@@ -73,6 +73,11 @@ class User(Base):
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_failed_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # Token revocation watermark: tokens issued before this instant are rejected
+    # (see app/auth/token_revocation.py).  Bumped by logout, deactivation, and
+    # the PowerAdmin force-logout endpoint.
+    tokens_valid_after: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     role_assignments: Mapped[List["UserRoleAssignment"]] = relationship(
         back_populates="user", foreign_keys="UserRoleAssignment.user_id"
     )

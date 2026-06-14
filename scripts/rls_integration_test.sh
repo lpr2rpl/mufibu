@@ -78,8 +78,9 @@ echo "[rls-test] seeding fixtures (under bypass context) ..."
 $APP -q -c "
 SET app.bypass_rls = 'true';
 INSERT INTO tenants (id, name) VALUES ('$TA', 'TenantA'), ('$TB', 'TenantB');
-INSERT INTO users (id, username, email, password_hash)
-    VALUES ('$U1', 'u1', 'u1@example.test', 'x');
+INSERT INTO users (id, username, email, password_hash) VALUES
+    ('$U1', 'u1', 'u1@example.test', 'x'),
+    ('$U2', 'u2', 'u2@example.test', 'x');
 INSERT INTO accounts (id, tenant_id, account_number, name, account_type, created_by) VALUES
     ('$A1', '$TA', '1000', 'Cash A', 'asset',   '$U1'),
     ('$A2', '$TA', '2000', 'Rev A',  'revenue', '$U1'),
@@ -176,6 +177,16 @@ expect_count "audit_log UPDATE does not modify rows" \
     "$AUDITOR UPDATE audit_log SET notes='HACK'; SELECT count(*) FROM audit_log WHERE notes='HACK';" 0
 expect_count "audit_log DELETE does not remove rows" \
     "$AUDITOR DELETE FROM audit_log; SELECT count(*) FROM audit_log;" 3
+
+echo "[rls-test] token revocation watermark (users RLS) ..."
+# acting user U2 corresponds to the seeded user id U2
+REV_SELF="$(setctx $U2 '' '' '' false false)"
+expect_allowed "user can bump own revocation watermark" \
+    "$REV_SELF BEGIN; UPDATE users SET tokens_valid_after=now() WHERE id='$U2'; ROLLBACK;"
+expect_count "non-PowerAdmin cannot revoke another user's tokens (0 rows under RLS)" \
+    "$REV_SELF WITH u AS (UPDATE users SET tokens_valid_after=now() WHERE id='$U1' RETURNING 1) SELECT count(*) FROM u;" 0
+expect_allowed "PowerAdmin can revoke any user's tokens (force-logout)" \
+    "$POWERADMIN BEGIN; UPDATE users SET tokens_valid_after=now() WHERE id='$U1'; ROLLBACK;"
 
 rm -f /tmp/rls_err.$$
 echo "[rls-test] ---------------------------------------------"

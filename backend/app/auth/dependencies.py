@@ -39,6 +39,7 @@ from app.auth.permissions import (
     is_reader,
     is_writer,
 )
+from app.auth.token_revocation import token_revoked
 from app.database import get_db
 from app.models import User, UserRoleAssignment, Role
 from app.rls import RLSContext, build_rls_context, set_rls_context
@@ -157,6 +158,11 @@ def get_current_user(
     ).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    # Reject tokens issued before the user's revocation watermark (logout,
+    # deactivation, or PowerAdmin force-logout bumps it).
+    if token_revoked(payload.get("iat"), user.tokens_valid_after):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
 
     return CurrentUser(user, payload)
 

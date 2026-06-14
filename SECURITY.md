@@ -77,10 +77,24 @@ id; the audit log records successful logins.
 
 ## Token Revocation
 
-Tokens are stateless.  A role revoked in the database can remain effective
-until the access token expires.  Use shorter access-token lifetimes when rapid
-revocation matters.  A future token denylist or session table would provide
-immediate revocation.
+Tokens are stateless, but each one carries an `iat` (issued-at) claim and every
+user has a `tokens_valid_after` watermark.  Any access or refresh token issued
+before that watermark is rejected (401) by `get_current_user` and `/auth/refresh`.
+Advancing the watermark to the current time therefore revokes all of a user's
+outstanding tokens at once.  The watermark is bumped by:
+
+- logout (`/auth/logout`) - the caller's own tokens;
+- deactivating a user (`PATCH /users/{id}` with `is_active=false`) or
+  soft-deleting a user - PowerAdmin only;
+- the force-logout endpoint (`POST /users/{id}/revoke-tokens`) - PowerAdmin
+  only, for incident response or after revoking a sensitive role.
+
+Because the watermark lives on the `users` row, the users RLS update policy
+governs who may set it: a user may revoke their own tokens, and PowerAdmin may
+revoke anyone's.  A role assignment revoked by a tenant Admin is not bumped this
+way and remains effective until the access token expires; use a shorter
+`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, or have a PowerAdmin force-logout the user,
+when rapid revocation of such changes matters.
 
 ## Secret Handling
 

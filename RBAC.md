@@ -48,9 +48,16 @@ Global roles:
 
 Active role assignments are embedded in access and refresh tokens at login and
 refresh time.  Because the access token is stateless, revoking a role in the
-database does not affect an already-issued access token until it expires.
+database does not change the claims in an already-issued access token until it
+expires or the token is revoked.
 
-Use shorter access-token lifetimes when fast revocation matters.
+Tokens can be revoked immediately via the per-user `tokens_valid_after`
+watermark (see `SECURITY.md`, "Token Revocation"): logout revokes the caller's
+tokens, and PowerAdmin can deactivate a user or force-logout
+(`POST /users/{id}/revoke-tokens`) to drop all of a user's tokens at once.  A
+role revoked by a tenant Admin is not auto-revoked this way; use shorter
+access-token lifetimes or a PowerAdmin force-logout when fast revocation
+matters.
 
 ## Alignment Rule
 

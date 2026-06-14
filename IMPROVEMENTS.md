@@ -86,9 +86,15 @@ Strengths observed:
 - [ ] Introduce Alembic.  `MIGRATIONS.md` notes Alembic is a dependency but no
       environment exists; raw SQL files are authoritative.  Add an Alembic env
       or remove the unused dependency to avoid confusion.
-- [ ] Add a token revocation path (denylist or session table) for immediate
-      revocation.  Documented as future work in `SECURITY.md`; stateless tokens
-      keep a revoked role effective until expiry.
+- [x] Add a token revocation path for immediate revocation.  Implemented a
+      per-user `tokens_valid_after` watermark (migration 006,
+      `app/auth/token_revocation.py`): tokens carry `iat` and any token issued
+      before the watermark is rejected by `get_current_user` and `/auth/refresh`.
+      Logout, user deactivation/soft-delete, and a PowerAdmin force-logout
+      endpoint (`POST /users/{id}/revoke-tokens`) bump it.  RLS on `users`
+      governs who can revoke whom (self / PowerAdmin); verified by the RLS
+      integration test.  Tenant-Admin role revokes remain TTL-bounded (noted in
+      `SECURITY.md`/`RBAC.md`).
 - [x] Tighten CORS.  `backend/app/main.py` previously used
       `allow_methods=["*"]` and `allow_headers=["*"]` with
       `allow_credentials=True`.  Now restricted to the methods

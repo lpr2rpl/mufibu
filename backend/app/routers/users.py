@@ -126,6 +126,9 @@ def update_user(
         if not current.is_power_admin():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change active status")
         user.is_active = body.is_active
+        # Deactivating a user revokes their outstanding tokens immediately.
+        if body.is_active is False:
+            user.tokens_valid_after = datetime.now(timezone.utc)
 
     db.add(AuditLog(
         user_id=current.id,
@@ -150,8 +153,11 @@ def soft_delete_user(
     user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    user.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    user.deleted_at = now
     user.deleted_by = current.id
+    # Revoke the deleted user's outstanding tokens immediately.
+    user.tokens_valid_after = now
     db.add(AuditLog(
         user_id=current.id,
         action="SOFT_DELETE",
@@ -159,3 +165,31 @@ def soft_delete_user(
         record_id=user_id,
     ))
     db.commit()
+
+
+@router.post("/{user_id}/revoke-tokens", status_code=status.HTTP_200_OK)
+def revoke_user_tokens(
+    user_id: uuid.UUID,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Force-logout: invalidate all of a user's outstanding access and refresh
+    tokens by advancing their revocation watermark.  PowerAdmin only; the
+    recommended action after revoking a sensitive role or during an incident.
+    """
+    require_power_admin(current)
+    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.tokens_valid_after = datetime.now(timezone.utc)
+    db.add(AuditLog(
+        user_id=current.id,
+        action="UPDATE",
+        table_name="users",
+        record_id=user_id,
+        notes="Tokens revoked (force-logout)",
+    ))
+    db.commit()
+    return {"detail": "User tokens revoked"}

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import build_roles_payload, get_current_user, CurrentUser
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.auth.login_throttle import is_locked, register_failure, seconds_until_unlock
+from app.auth.token_revocation import token_revoked
 from app.config import get_settings
 from app.database import get_db
 from app.models import AuditLog, User
@@ -136,6 +137,11 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+    # Honor the revocation watermark so a logged-out/revoked refresh token
+    # cannot be used to mint new access tokens.
+    if token_revoked(payload.get("iat"), user.tokens_valid_after):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked")
+
     roles = build_roles_payload(user, db)
     set_rls_context(build_rls_context(str(user.id), roles))
 
@@ -149,6 +155,9 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def logout(current: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Bump the revocation watermark so this user's outstanding access and
+    # refresh tokens stop working immediately (RLS allows updating self).
+    current.user.tokens_valid_after = datetime.now(timezone.utc)
     _audit(db, current.user, "LOGOUT")
     db.commit()
     return {"detail": "Logged out"}

@@ -17,6 +17,8 @@ migration files.
 - `database/migrations/005_ura_scope_trigger.sql`: idempotent migration adding a
   trigger that enforces role scope / tenant_id consistency (replacing a CHECK
   constraint that could not use a subquery).
+- `database/migrations/006_token_revocation.sql`: idempotent migration adding the
+  per-user `tokens_valid_after` token revocation watermark column.
 
 ## Apply Order
 
@@ -28,6 +30,7 @@ psql -v ON_ERROR_STOP=1 -f database/migrations/002_rls_officer.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/003_login_throttle.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/004_journal_balance.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/005_ura_scope_trigger.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/006_token_revocation.sql
 ```
 
 The setup script and the smoke test apply every file in
