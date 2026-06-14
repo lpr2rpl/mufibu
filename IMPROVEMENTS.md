@@ -108,10 +108,11 @@ Strengths observed:
       the full `schema.sql` + migrations chain now applies under
       `ON_ERROR_STOP=1`, and the trigger accepts/rejects the scope-vs-tenant_id
       matrix correctly.
-- [ ] Clarify the misleading `chk_accounts_same_tenant` CHECK constraint comment
-      in `database/schema.sql`.  The constraint only enforces
-      `main_account_id != contra_account_id`; the same-tenant rule is enforced
-      by the `trg_je_account_tenant` trigger.
+- [x] Clarify the misleading `chk_accounts_same_tenant` CHECK constraint in
+      `database/schema.sql`.  Renamed to `chk_accounts_distinct` (it only
+      enforces `main_account_id != contra_account_id`) with an accurate comment
+      noting the same-tenant rule is enforced by the `trg_je_account_tenant`
+      trigger.
 - [ ] Resolve the "RLS pending alignment" cell for Admin account writes in
       `RBAC.md` so the documented matrix matches the policies in
       `002_rls_officer.sql`.

@@ -248,8 +248,11 @@ CREATE TABLE journal_entries (
     deleted_by         UUID         REFERENCES users(id),
 
     UNIQUE (tenant_id, entry_number),
-    CONSTRAINT chk_accounts_same_tenant CHECK (
-        -- Both accounts must belong to the same tenant (enforced via trigger below)
+    -- The main and contra accounts must be different.  The separate rule that
+    -- both accounts belong to this entry's tenant cannot be a CHECK (it needs
+    -- a lookup into accounts) and is enforced by the trg_je_account_tenant
+    -- trigger defined below.
+    CONSTRAINT chk_accounts_distinct CHECK (
         main_account_id != contra_account_id
     )
 );
