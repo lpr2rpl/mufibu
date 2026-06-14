@@ -289,9 +289,10 @@ CREATE POLICY rls_ura_delete ON user_role_assignments
 
 -- ---- ACCOUNTS --------------------------------------------------------------
 -- Reader-class roles + Officer + Auditor: read
--- Admin: read (needed for account-selection in UI, no journal access)
--- PowerUser + Admin (write path handled by app layer): write
--- PowerAdmin: full access
+-- Admin: read only (needed for account-selection in UI, no journal access)
+-- Writable tenant roles (Writer/PowerUser) + PowerAdmin: write
+--   (the app layer narrows account writes further to PowerUser + PowerAdmin)
+-- Admin has NO account write access.
 
 CREATE POLICY rls_accounts_select ON accounts
     FOR SELECT USING (

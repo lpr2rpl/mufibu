@@ -30,7 +30,7 @@ Global roles:
 | Approve or reject entries | no | no | no | yes | no | no | no | no |
 | Post entries | no | no | yes | no | no | no | no | no |
 | Read accounts | yes | yes | yes | yes | yes | yes | all | yes |
-| Write accounts | no | no | yes | no | app yes, RLS pending alignment | no | no | yes |
+| Write accounts | no | no | yes | no | no | no | no | yes |
 | Manage tenant role assignments | no | no | no | no | tenant | no | no | all |
 | Create tenants | no | no | no | no | no | no | no | yes |
 | Read audit log | own via RLS | own via RLS | own via RLS | own via RLS | own via RLS | assigned tenants | all | all |

@@ -25,12 +25,13 @@ def require_account_read(current: "CurrentUser", tenant_id: uuid.UUID) -> None:
 
 
 def require_account_write(current: "CurrentUser", tenant_id: uuid.UUID) -> None:
+    # Mirrors the accounts RLS write policy (app_can_write_tenant OR PowerAdmin).
+    # Admin manages role assignments only and has no account write access.
     if not (
         current.is_power_user(tenant_id)
-        or current.is_admin(tenant_id)
         or current.is_power_admin()
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerUser or Admin role required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PowerUser or PowerAdmin role required")
 
 
 def require_journal_read(current: "CurrentUser", tenant_id: uuid.UUID) -> None:

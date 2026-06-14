@@ -113,9 +113,12 @@ Strengths observed:
       enforces `main_account_id != contra_account_id`) with an accurate comment
       noting the same-tenant rule is enforced by the `trg_je_account_tenant`
       trigger.
-- [ ] Resolve the "RLS pending alignment" cell for Admin account writes in
-      `RBAC.md` so the documented matrix matches the policies in
-      `002_rls_officer.sql`.
+- [x] Resolve the "RLS pending alignment" cell for Admin account writes.  The
+      app layer allowed Admin to write accounts but RLS did not, so an Admin
+      write hit an RLS failure instead of a clean 403.  Aligned to RLS (and the
+      role definition): `require_account_write` no longer allows Admin, the
+      `RBAC.md` matrix cell is now "no", and the accounts router and
+      `002_rls_officer.sql` comments were corrected.
 - [ ] Consider moving JWTs out of `localStorage`.  Documented as a known
       tradeoff; `localStorage` is XSS-exposed.  httpOnly cookies plus CSRF
       defense is the stronger option if/when scope allows.

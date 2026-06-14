@@ -32,7 +32,9 @@ export function canReadAccounts(roles, tenantId) {
 }
 
 export function canWriteAccounts(roles, tenantId) {
-  return hasTenantRole(roles, tenantId, 'PowerUser', 'Admin') || hasGlobalRole(roles, 'PowerAdmin');
+  // Admin manages role assignments only and has no account write access;
+  // mirrors require_account_write and the accounts RLS write policy.
+  return hasTenantRole(roles, tenantId, 'PowerUser') || hasGlobalRole(roles, 'PowerAdmin');
 }
 
 export function canPostJournalEntry(roles, tenantId) {

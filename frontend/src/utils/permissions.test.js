@@ -79,8 +79,8 @@ describe('permission helpers', () => {
     expect(canReadAccounts([globalRole('PowerAdmin')], tenantA)).toBe(true);
 
     expect(canWriteAccounts([tenantRole('PowerUser')], tenantA)).toBe(true);
-    expect(canWriteAccounts([tenantRole('Admin')], tenantA)).toBe(true);
     expect(canWriteAccounts([globalRole('PowerAdmin')], tenantA)).toBe(true);
+    expect(canWriteAccounts([tenantRole('Admin')], tenantA)).toBe(false);
     expect(canWriteAccounts([tenantRole('Writer')], tenantA)).toBe(false);
   });
 

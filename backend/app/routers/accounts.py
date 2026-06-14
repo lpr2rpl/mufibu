@@ -3,11 +3,12 @@ Chart of accounts management.
 
 Read access:  Reader, Writer, PowerUser, Approver, Officer, Admin (tenant),
               Auditor (global), PowerAdmin (global).
-Write access: PowerUser, Admin (tenant), PowerAdmin (global).
+Write access: PowerUser (tenant), PowerAdmin (global).
 
 Note: Admin requires read access to the account list for the role-management
 UI (account selection in journal entries) even though they cannot access
-journal entries themselves.  The DB-level RLS policy for accounts mirrors this.
+journal entries themselves.  Admin has no account write access.  The app-layer
+checks and the DB-level RLS policy for accounts mirror each other.
 """
 import uuid
 from datetime import datetime, timezone
