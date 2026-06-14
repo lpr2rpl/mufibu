@@ -129,14 +129,11 @@ CREATE TABLE user_role_assignments (
     deleted_at  TIMESTAMPTZ,
     deleted_by  UUID        REFERENCES users(id),
 
-    -- Consistency: tenant-scoped roles must have a tenant_id; global roles must not
-    CONSTRAINT chk_scope_tenant CHECK (
-        (tenant_id IS NOT NULL AND
-            (SELECT scope FROM roles WHERE id = role_id) = 'tenant')
-        OR
-        (tenant_id IS NULL AND
-            (SELECT scope FROM roles WHERE id = role_id) = 'global')
-    ),
+    -- Consistency between role scope and tenant_id (tenant-scoped roles must
+    -- have a tenant_id; global roles must not) cannot be a CHECK constraint
+    -- because it depends on another table (roles).  It is enforced by the
+    -- trg_ura_scope_tenant trigger defined below.
+
     -- valid_until must be after valid_from when set
     CONSTRAINT chk_phase_dates CHECK (
         valid_until IS NULL OR valid_until > valid_from
@@ -147,6 +144,31 @@ CREATE INDEX idx_ura_user         ON user_role_assignments(user_id);
 CREATE INDEX idx_ura_tenant       ON user_role_assignments(tenant_id);
 CREATE INDEX idx_ura_role         ON user_role_assignments(role_id);
 CREATE INDEX idx_ura_active_phase ON user_role_assignments(user_id, tenant_id, is_active, valid_from, valid_until);
+
+-- Enforce scope/tenant consistency (replaces a CHECK that needed a subquery):
+-- tenant-scoped roles must carry a tenant_id; global roles must not.
+CREATE OR REPLACE FUNCTION check_ura_scope_tenant()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    v_scope role_scope;
+BEGIN
+    SELECT scope INTO v_scope FROM roles WHERE id = NEW.role_id;
+    IF v_scope IS NULL THEN
+        RAISE EXCEPTION 'role_id % does not exist', NEW.role_id;
+    END IF;
+    IF v_scope = 'tenant' AND NEW.tenant_id IS NULL THEN
+        RAISE EXCEPTION 'tenant-scoped role requires a tenant_id';
+    END IF;
+    IF v_scope = 'global' AND NEW.tenant_id IS NOT NULL THEN
+        RAISE EXCEPTION 'global-scoped role must not have a tenant_id';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_ura_scope_tenant
+    BEFORE INSERT OR UPDATE ON user_role_assignments
+    FOR EACH ROW EXECUTE FUNCTION check_ura_scope_tenant();
 
 -- ---------------------------------------------------------------------------
 -- Chart of Accounts  (Kontenplan, per tenant)

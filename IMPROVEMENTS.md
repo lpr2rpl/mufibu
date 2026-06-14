@@ -95,6 +95,15 @@ Strengths observed:
 
 ### P3 - Maintainability and Documentation
 
+- [x] Fix the invalid `chk_scope_tenant` CHECK constraint in
+      `database/schema.sql`.  It used a subquery into `roles`, which PostgreSQL
+      rejects, so `schema.sql` was not a valid standalone artifact and the
+      invariant was unenforced (tables come from `create_all`).  Replaced with a
+      `trg_ura_scope_tenant` trigger in `schema.sql` and idempotent migration
+      `005_ura_scope_trigger.sql`.  Validated on a live PostgreSQL 17 instance:
+      the full `schema.sql` + migrations chain now applies under
+      `ON_ERROR_STOP=1`, and the trigger accepts/rejects the scope-vs-tenant_id
+      matrix correctly.
 - [ ] Clarify the misleading `chk_accounts_same_tenant` CHECK constraint comment
       in `database/schema.sql`.  The constraint only enforces
       `main_account_id != contra_account_id`; the same-tenant rule is enforced

@@ -14,6 +14,9 @@ migration files.
 - `database/migrations/004_journal_balance.sql`: idempotent migration adding a
   deferred constraint trigger that enforces double-entry balance on split
   journal lines.
+- `database/migrations/005_ura_scope_trigger.sql`: idempotent migration adding a
+  trigger that enforces role scope / tenant_id consistency (replacing a CHECK
+  constraint that could not use a subquery).
 
 ## Apply Order
 
@@ -24,6 +27,7 @@ psql -v ON_ERROR_STOP=1 -f database/schema.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/002_rls_officer.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/003_login_throttle.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/004_journal_balance.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/005_ura_scope_trigger.sql
 ```
 
 The setup script and the smoke test apply every file in
