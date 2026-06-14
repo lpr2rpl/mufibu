@@ -41,6 +41,12 @@ Run the opt-in database bootstrap smoke test:
 DB_USER=mufibu DB_PASS=change-this make db-smoke
 ```
 
+Run the opt-in RLS integration test:
+
+```sh
+DB_ADMIN_USER=postgres make rls-test
+```
+
 ## Backend Coverage
 
 `backend/tests/test_security_contracts.py` checks the role and RLS context
@@ -71,3 +77,26 @@ schema and RLS migration, and verifies that roles are present.
 The smoke test is intentionally not part of `make ci` because it requires a
 PostgreSQL server and a database user with create/drop database privileges.
 Use it in an environment prepared for destructive test database operations.
+
+## RLS Integration Test
+
+`scripts/rls_integration_test.sh` (target `make rls-test`) exercises the actual
+row-level security policies against a real PostgreSQL server.  It provisions a
+throwaway database and a dedicated non-superuser role (RLS does not apply to
+superusers), applies `schema.sql` and all migrations as that role, seeds two
+tenants with accounts, journal entries, and audit rows, then asserts policy
+behavior by simulating each app-user context through the `app.*` session
+variables the backend sets:
+
+- tenant isolation and the anonymous deny-all default;
+- Reader/Writer/Officer read scope and write restrictions (including blocked
+  cross-tenant writes);
+- Admin reads accounts but cannot write them or read journal entries;
+- Auditor global read with no write;
+- PowerAdmin tenant access with no booking access;
+- audit-log visibility scoping and append-only immutability.
+
+It provisions and drops its own role and database, so it needs an admin
+connection (`DB_ADMIN_USER`, default `postgres`) with privileges to create and
+drop roles and databases.  Like `db-smoke`, it is intentionally excluded from
+`make ci`.

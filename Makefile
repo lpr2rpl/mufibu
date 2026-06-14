@@ -1,7 +1,7 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: ascii-check backend-syntax backend-test frontend-test frontend-build db-smoke ci
+.PHONY: ascii-check backend-syntax backend-test frontend-test frontend-build db-smoke rls-test ci
 
 ascii-check:
 	./scripts/ascii_check.sh
@@ -20,5 +20,8 @@ frontend-build:
 
 db-smoke:
 	./scripts/db_bootstrap_smoke.sh
+
+rls-test:
+	./scripts/rls_integration_test.sh
 
 ci: ascii-check backend-syntax backend-test frontend-test frontend-build

@@ -122,9 +122,15 @@ Strengths observed:
 - [ ] Consider moving JWTs out of `localStorage`.  Documented as a known
       tradeoff; `localStorage` is XSS-exposed.  httpOnly cookies plus CSRF
       defense is the stronger option if/when scope allows.
-- [ ] Expand automated coverage with an opt-in integration test that exercises
+- [x] Expand automated coverage with an opt-in integration test that exercises
       RLS against a real PostgreSQL instance (the smoke test only checks role
-      seeding).
+      seeding).  Added `scripts/rls_integration_test.sh` (`make rls-test`): it
+      provisions a throwaway non-superuser role + database, applies
+      `schema.sql` and all migrations, seeds two tenants, and asserts the RLS
+      policies by simulating each app-user context via the `app.*` session
+      variables (tenant isolation, role read/write scope, cross-tenant write
+      blocks, audit visibility, and append-only immutability).  Opt-in like
+      `db-smoke`, not part of `make ci`.
 
 ## 3. ASCII7 Policy
 
