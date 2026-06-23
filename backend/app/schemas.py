@@ -17,12 +17,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
 class RefreshRequest(BaseModel):
+    # Optional body fallback for non-browser clients; browsers use the
+    # httpOnly refresh cookie instead.
     refresh_token: str
 
 class TokenPayload(BaseModel):
@@ -72,6 +69,12 @@ class UserOut(BaseModel):
     is_active: bool
     created_at: datetime
     model_config = {"from_attributes": True}
+
+class AuthSession(BaseModel):
+    # Returned by login / refresh / me.  Tokens are delivered as httpOnly
+    # cookies, never in the body, so JavaScript cannot read them.
+    user: UserOut
+    roles: List[dict]
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None

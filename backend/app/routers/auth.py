@@ -9,12 +9,15 @@ context immediately after the password is verified.
 """
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
+from app.auth.csrf import generate_csrf_token
 from app.auth.dependencies import build_roles_payload, get_current_user, CurrentUser
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.auth.login_throttle import is_locked, register_failure, seconds_until_unlock
@@ -23,7 +26,19 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import AuditLog, User
 from app.rls import BYPASS_CONTEXT, build_rls_context, set_rls_context
-from app.schemas import LoginRequest, RefreshRequest, TokenResponse, UserOut
+from app.schemas import AuthSession, LoginRequest, RefreshRequest
+
+
+def _issue_session(response: Response, user: User, roles: list) -> AuthSession:
+    """Mint fresh tokens, deliver them as cookies, and return the session body."""
+    token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
+    set_auth_cookies(
+        response,
+        create_access_token(token_data),
+        create_refresh_token(token_data),
+        generate_csrf_token(),
+    )
+    return AuthSession(user=user, roles=roles)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,8 +61,8 @@ def _audit(db: Session, user: User, action: str, notes: str = ""):
     ))
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login", response_model=AuthSession)
+def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
     # Activate bypass so the RLS after_begin event allows the user lookup.
     # The bypass is intentional here: we need to find the user BEFORE we can
     # build a proper RLS context (chicken-and-egg at authentication time).
@@ -105,21 +120,26 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     roles = build_roles_payload(user, db)
     set_rls_context(build_rls_context(str(user.id), roles))
 
-    token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
-
     _audit(db, user, "LOGIN")
     db.commit()
 
-    return TokenResponse(
-        access_token=create_access_token(token_data),
-        refresh_token=create_refresh_token(token_data),
-    )
+    return _issue_session(response, user, roles)
 
 
-@router.post("/refresh", response_model=TokenResponse)
-def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
+@router.post("/refresh", response_model=AuthSession)
+def refresh(
+    request: Request,
+    response: Response,
+    body: Optional[RefreshRequest] = None,
+    db: Session = Depends(get_db),
+):
+    # Browsers send the refresh token as an httpOnly cookie; non-browser clients
+    # may supply it in the body instead.
+    refresh_token = request.cookies.get(REFRESH_COOKIE) or (body.refresh_token if body else None)
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
     try:
-        payload = decode_token(body.refresh_token)
+        payload = decode_token(refresh_token)
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
@@ -145,24 +165,24 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     roles = build_roles_payload(user, db)
     set_rls_context(build_rls_context(str(user.id), roles))
 
-    token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
-
-    return TokenResponse(
-        access_token=create_access_token(token_data),
-        refresh_token=create_refresh_token(token_data),
-    )
+    return _issue_session(response, user, roles)
 
 
 @router.post("/logout")
-def logout(current: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+def logout(
+    response: Response,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     # Bump the revocation watermark so this user's outstanding access and
     # refresh tokens stop working immediately (RLS allows updating self).
     current.user.tokens_valid_after = datetime.now(timezone.utc)
     _audit(db, current.user, "LOGOUT")
     db.commit()
+    clear_auth_cookies(response)
     return {"detail": "Logged out"}
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=AuthSession)
 def me(current: CurrentUser = Depends(get_current_user)):
-    return current.user
+    return AuthSession(user=current.user, roles=current.roles)

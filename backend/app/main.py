@@ -15,6 +15,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE
+from app.auth.csrf import csrf_valid
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.logging_context import RequestIdFilter, clear_request_context, set_request_context
@@ -124,9 +126,45 @@ app.add_middleware(
     # and (per the CORS spec) not honored by browsers for credentialed
     # requests, so an explicit allowlist is also more correct.
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
     expose_headers=["X-Request-ID"],
 )
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection (double-submit cookie).
+#
+# Cookie-based auth attaches credentials ambiently, so a cross-site page could
+# trigger state-changing requests.  For unsafe methods that authenticate via
+# cookie (no Authorization header), require the X-CSRF-Token header to match the
+# csrf_token cookie.  Requests authenticated with a Bearer header are not
+# cookie-driven and cannot be forged cross-site, so they are exempt; /auth/login
+# is exempt because it establishes the first session.
+# ---------------------------------------------------------------------------
+
+_CSRF_UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_CSRF_EXEMPT_PATHS = {"/api/v1/auth/login"}
+
+
+@app.middleware("http")
+async def csrf_protection_middleware(request: Request, call_next):
+    path = request.url.path
+    cookie_authenticated = bool(
+        request.cookies.get(ACCESS_COOKIE) or request.cookies.get(REFRESH_COOKIE)
+    )
+    if (
+        request.method in _CSRF_UNSAFE_METHODS
+        and path.startswith("/api/")
+        and path not in _CSRF_EXEMPT_PATHS
+        and cookie_authenticated
+        and not request.headers.get("Authorization")
+    ):
+        if not csrf_valid(request.headers.get("X-CSRF-Token"), request.cookies.get(CSRF_COOKIE)):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "CSRF token missing or invalid"},
+            )
+    return await call_next(request)
 
 
 @app.middleware("http")

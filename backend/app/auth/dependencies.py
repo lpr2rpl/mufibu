@@ -21,11 +21,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import ACCESS_COOKIE
 from app.auth.jwt_handler import decode_token
 from app.auth.permissions import (
     has_global_role,
@@ -44,15 +44,28 @@ from app.database import get_db
 from app.models import User, UserRoleAssignment, Role
 from app.rls import RLSContext, build_rls_context, set_rls_context
 
-security = HTTPBearer()
-
-
 # ------------------------------------------------------------------
 # Token extraction
 # ------------------------------------------------------------------
 
-def _get_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    return credentials.credentials
+def _get_token(request: Request) -> str:
+    """
+    Resolve the access token from the httpOnly access_token cookie (the browser
+    path), falling back to an Authorization: Bearer header for non-browser API
+    clients.
+    """
+    token = request.cookies.get(ACCESS_COOKIE)
+    if not token:
+        header = request.headers.get("Authorization", "")
+        if header.startswith("Bearer "):
+            token = header[len("Bearer "):]
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
 
 
 def _decode(token: str = Depends(_get_token)) -> dict:
@@ -86,6 +99,11 @@ class CurrentUser:
         self.id: uuid.UUID = user.id
         self.username: str = user.username
         self._roles: List[dict] = payload.get("roles", [])
+
+    @property
+    def roles(self) -> List[dict]:
+        """Active role claims from the token (used by /auth/me)."""
+        return self._roles
 
     # --- Low-level helpers ------------------------------------------------
 

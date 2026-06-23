@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -23,6 +25,13 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost", "http://localhost:80", "http://localhost:3000"]
+
+    # Auth cookies (cookie-based JWT auth).  COOKIE_SECURE must be true in
+    # production (cookies are only sent over HTTPS); set it false for local
+    # plain-HTTP development.
+    COOKIE_SECURE: bool = True
+    COOKIE_SAMESITE: str = "strict"
+    COOKIE_DOMAIN: Optional[str] = None
 
     # First PowerAdmin seed (created on first startup if no users exist)
     SEED_ADMIN_USERNAME: str = "poweradmin"
