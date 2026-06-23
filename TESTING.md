@@ -47,6 +47,12 @@ Run the opt-in RLS integration test:
 DB_ADMIN_USER=postgres make rls-test
 ```
 
+Run the opt-in auth-flow integration test (needs backend deps installed):
+
+```sh
+DB_USER=mufibu DB_PASS=change-this make auth-flow-test
+```
+
 ## Backend Coverage
 
 `backend/tests/test_security_contracts.py` checks the role and RLS context
@@ -100,3 +106,24 @@ It provisions and drops its own role and database, so it needs an admin
 connection (`DB_ADMIN_USER`, default `postgres`) with privileges to create and
 drop roles and databases.  Like `db-smoke`, it is intentionally excluded from
 `make ci`.
+
+## Auth-Flow Integration Test
+
+`scripts/auth_flow_test.sh` (target `make auth-flow-test`) drives the real
+FastAPI app through `scripts/auth_flow_test.py` (FastAPI `TestClient`) against a
+throwaway database, exercising the cookie + CSRF auth contract end to end:
+
+- login returns `{user, roles}` with tokens only in httpOnly cookies (none in
+  the body);
+- the session works via the cookie (`/me`);
+- CSRF blocks unsafe cookie-authenticated requests with a missing or wrong
+  token and allows a valid one, while `Authorization: Bearer` clients bypass
+  CSRF;
+- refresh rotates the session and logout clears the cookies and revokes the
+  token (`/me` then returns 401).
+
+Unlike the pure-Python unit tests, this needs the backend dependencies
+installed (`backend/requirements.txt`, plus `httpx` for `TestClient`) and a
+PostgreSQL server with create/drop database privileges.  Set `PYTHON` to an
+interpreter that has the deps (for example a virtualenv).  It is excluded from
+`make ci` for the same reason as the other database-backed tests.
