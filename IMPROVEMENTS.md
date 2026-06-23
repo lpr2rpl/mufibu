@@ -136,7 +136,10 @@ Strengths observed:
       and a Bearer fallback for non-browser clients.  `COOKIE_SECURE` is
       configurable (HTTPS required in production; `false` for local HTTP).
       Validated end to end against a live FastAPI + PostgreSQL instance.  See
-      `SECURITY.md` ("Cookie-Based Sessions", "CSRF Protection").
+      `SECURITY.md` ("Cookie-Based Sessions", "CSRF Protection").  The frontend
+      nginx site now terminates TLS on 443 and redirects 80 -> HTTPS, with
+      `setup.sh` generating a self-signed cert if none exists (replace with a
+      real cert in production); see `DEPLOYMENT.md` ("TLS").
 - [x] Expand automated coverage with an opt-in integration test that exercises
       RLS against a real PostgreSQL instance (the smoke test only checks role
       seeding).  Added `scripts/rls_integration_test.sh` (`make rls-test`): it

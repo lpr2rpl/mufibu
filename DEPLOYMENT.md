@@ -6,7 +6,8 @@ system.
 
 ## Runtime Topology
 
-- nginx on port 80 serves the React build from `/var/www/mufibu/frontend`.
+- nginx serves the React build from `/var/www/mufibu/frontend` over HTTPS on
+  port 443; port 80 redirects to HTTPS (and serves ACME challenges).
 - The frontend nginx site proxies `/api/` to the backend nginx listener on
   `127.0.0.1:8080` through the `mufibu_api_proxy` upstream.
 - The backend nginx site proxies traffic from port 8080 to Gunicorn/Uvicorn on
@@ -81,10 +82,11 @@ curl -sf http://127.0.0.1:8080/api/v1/health
 curl -sf http://127.0.0.1:8080/api/v1/health/db
 ```
 
-The public health URL through the frontend nginx site is:
+The public health URL through the frontend nginx site is served over HTTPS
+(`-k` accepts the self-signed certificate):
 
 ```sh
-curl -sf http://127.0.0.1/api/v1/health
+curl -skf https://127.0.0.1/api/v1/health
 ```
 
 ## Logs
@@ -96,13 +98,27 @@ curl -sf http://127.0.0.1/api/v1/health
 - Backend nginx access log: `/var/log/nginx/mufibu-backend-access.log`
 - Backend nginx error log: `/var/log/nginx/mufibu-backend-error.log`
 
-## TLS Requirement
+## TLS
 
 Auth tokens are delivered as `Secure` cookies, which browsers send only over
-HTTPS.  Production must therefore terminate TLS in front of the frontend nginx
-site (the bundled config listens on plain `:80`; add a TLS server block or front
-it with a TLS-terminating proxy).  For local plain-HTTP testing only, set
-`COOKIE_SECURE=false` in the backend environment.
+HTTPS, so the frontend nginx site terminates TLS on port 443 and redirects
+port 80 to HTTPS.
+
+The `nginx` step generates a self-signed certificate at
+`/etc/mufibu/tls/fullchain.pem` and `/etc/mufibu/tls/privkey.pem` if none is
+present, so the site comes up over HTTPS out of the box (browsers will warn on
+the self-signed cert).  For production, replace it with a real certificate -
+for example with Let's Encrypt, which can validate over the port-80 ACME path:
+
+```sh
+certbot certonly --webroot -w /var/www/mufibu/frontend -d mufibu.example.com
+cp /etc/letsencrypt/live/mufibu.example.com/fullchain.pem /etc/mufibu/tls/fullchain.pem
+cp /etc/letsencrypt/live/mufibu.example.com/privkey.pem  /etc/mufibu/tls/privkey.pem
+service nginx reload
+```
+
+For local plain-HTTP testing only, set `COOKIE_SECURE=false` in the backend
+environment (otherwise the browser will not send the cookies over HTTP).
 
 ## Rollout Notes
 

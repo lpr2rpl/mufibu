@@ -47,6 +47,8 @@ WEB_ROOT=/var/www/mufibu/frontend
 LOG_DIR=/var/log/mufibu
 RUN_DIR=/var/run/mufibu
 CONF_DIR=/etc/mufibu
+TLS_DIR=/etc/mufibu/tls
+TLS_CN=mufibu.local                 # CN for the generated self-signed cert
 SEED_ADMIN_USERNAME=poweradmin
 SEED_ADMIN_EMAIL=poweradmin@mufibu.local
 SEED_ADMIN_PASSWORD=ChangeMe1!      # Replaced with random value if unchanged
@@ -390,6 +392,26 @@ step_nginx() {
 
     NGINX_SRC="${SRC_DIR}/nginx"
     [ -d "$NGINX_SRC" ] || die "nginx config directory not found: $NGINX_SRC"
+
+    # Ensure a TLS certificate exists before nginx -t (the frontend site
+    # references it).  Generate a self-signed placeholder if none is present;
+    # replace it with a real certificate (e.g. Let's Encrypt) in production.
+    if [ "$DRY_RUN" -eq 0 ]; then
+        mkdir -p "$TLS_DIR"
+        if [ ! -f "${TLS_DIR}/fullchain.pem" ] || [ ! -f "${TLS_DIR}/privkey.pem" ]; then
+            openssl req -x509 -newkey rsa:2048 -nodes \
+                -keyout "${TLS_DIR}/privkey.pem" \
+                -out    "${TLS_DIR}/fullchain.pem" \
+                -days 365 -subj "/CN=${TLS_CN}"
+            chmod 600 "${TLS_DIR}/privkey.pem"
+            chmod 644 "${TLS_DIR}/fullchain.pem"
+            ok "Generated self-signed TLS certificate in ${TLS_DIR} (replace with a real cert)."
+        else
+            ok "TLS certificate already present in ${TLS_DIR}."
+        fi
+    else
+        printf "${YELLOW}[DRY]${RESET}   generate self-signed cert in %s if missing\n" "$TLS_DIR"
+    fi
 
     runcmd cp "${NGINX_SRC}/mufibu-frontend.conf" \
                /etc/nginx/sites-available/mufibu-frontend.conf
