@@ -130,9 +130,13 @@ Strengths observed:
       role definition): `require_account_write` no longer allows Admin, the
       `RBAC.md` matrix cell is now "no", and the accounts router and
       `002_rls_officer.sql` comments were corrected.
-- [ ] Consider moving JWTs out of `localStorage`.  Documented as a known
-      tradeoff; `localStorage` is XSS-exposed.  httpOnly cookies plus CSRF
-      defense is the stronger option if/when scope allows.
+- [x] Move JWTs out of `localStorage`.  Access and refresh tokens are now
+      delivered as httpOnly, Secure, SameSite=Strict cookies (the SPA never
+      reads them), with a double-submit `csrf_token`/`X-CSRF-Token` CSRF defense
+      and a Bearer fallback for non-browser clients.  `COOKIE_SECURE` is
+      configurable (HTTPS required in production; `false` for local HTTP).
+      Validated end to end against a live FastAPI + PostgreSQL instance.  See
+      `SECURITY.md` ("Cookie-Based Sessions", "CSRF Protection").
 - [x] Expand automated coverage with an opt-in integration test that exercises
       RLS against a real PostgreSQL instance (the smoke test only checks role
       seeding).  Added `scripts/rls_integration_test.sh` (`make rls-test`): it

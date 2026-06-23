@@ -9,8 +9,12 @@ Frontend:
 
 - React 18 single-page application.
 - React Router owns browser routes.
-- Axios client calls `/api/v1`.
-- JWT tokens are stored in browser local storage.
+- Axios client calls `/api/v1` with credentials (cookies).
+- JWT access and refresh tokens are held in httpOnly cookies set by the backend;
+  JavaScript never reads them.  The SPA learns the user and roles from the
+  login/refresh/me response bodies.
+- A double-submit CSRF token (`csrf_token` cookie echoed in the `X-CSRF-Token`
+  header) guards state-changing requests.
 - Frontend permission helpers control navigation and action visibility.
 
 Backend:
@@ -39,9 +43,13 @@ Deployment:
 ## Request Flow
 
 1. A browser route renders the React app.
-2. API calls go through `frontend/src/api/client.js`.
-3. Axios attaches the access token as a bearer token.
-4. FastAPI decodes the token and builds a `CurrentUser`.
+2. API calls go through `frontend/src/api/client.js` with credentials.
+3. The browser sends the httpOnly access-token cookie automatically; for unsafe
+   methods the client also sends the `X-CSRF-Token` header.
+4. FastAPI's CSRF middleware validates the token for cookie-authenticated unsafe
+   requests, then the auth dependency reads the token from the cookie (falling
+   back to an `Authorization: Bearer` header for non-browser clients) and builds
+   a `CurrentUser`.
 5. `get_current_user` builds an RLS context from JWT role claims.
 6. SQLAlchemy injects RLS session variables at transaction start.
 7. PostgreSQL RLS policies filter readable and writable rows.

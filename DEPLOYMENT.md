@@ -96,6 +96,14 @@ curl -sf http://127.0.0.1/api/v1/health
 - Backend nginx access log: `/var/log/nginx/mufibu-backend-access.log`
 - Backend nginx error log: `/var/log/nginx/mufibu-backend-error.log`
 
+## TLS Requirement
+
+Auth tokens are delivered as `Secure` cookies, which browsers send only over
+HTTPS.  Production must therefore terminate TLS in front of the frontend nginx
+site (the bundled config listens on plain `:80`; add a TLS server block or front
+it with a TLS-terminating proxy).  For local plain-HTTP testing only, set
+`COOKIE_SECURE=false` in the backend environment.
+
 ## Rollout Notes
 
 - Keep `/etc/mufibu/backend.env` readable only by root and the `mufibu` group.
@@ -103,3 +111,4 @@ curl -sf http://127.0.0.1/api/v1/health
 - Re-run `./setup.sh service` after backend code changes.
 - Re-run `./setup.sh schema` only after reviewing database changes.
 - Back up PostgreSQL before applying schema or migration changes in production.
+- Serve over HTTPS in production so the `Secure` auth cookies are sent.

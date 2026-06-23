@@ -4,8 +4,9 @@ This document captures the current security model and operational assumptions.
 
 ## Authentication
 
-Users authenticate with username or email plus password.  The backend returns
-an access token and refresh token.  Tokens are signed with `JWT_SECRET_KEY`.
+Users authenticate with username or email plus password.  The backend issues a
+signed (`JWT_SECRET_KEY`) access token and refresh token and delivers them as
+cookies; the response body carries only `{user, roles}`, never the tokens.
 
 Access tokens include:
 
@@ -13,7 +14,34 @@ Access tokens include:
 - username
 - active role claims
 - token type
-- expiry
+- issued-at and expiry
+
+## Cookie-Based Sessions
+
+Tokens are delivered as cookies so browser JavaScript can never read them, which
+removes the XSS token-theft risk of `localStorage`:
+
+- `access_token` - httpOnly, `Path=/api/`, lifetime = access-token expiry.
+- `mufibu_refresh` - httpOnly, `Path=/api/v1/auth` (sent only to refresh/logout).
+- `csrf_token` - readable by JS (for the CSRF header), lifetime = refresh expiry.
+
+All carry `SameSite=Strict` and the `Secure` flag (`COOKIE_SECURE`, default on).
+`Secure` cookies are only sent over HTTPS, so production must terminate TLS;
+set `COOKIE_SECURE=false` only for local plain-HTTP development.
+
+The auth dependency reads the access token from the cookie, falling back to an
+`Authorization: Bearer` header for non-browser API clients.
+
+## CSRF Protection
+
+Because cookies are attached ambiently, state-changing requests use a
+double-submit token: the backend sets the `csrf_token` cookie and the SPA echoes
+it in the `X-CSRF-Token` header.  Middleware rejects unsafe methods
+(POST/PUT/PATCH/DELETE) under `/api/` whose header does not match the cookie,
+for requests authenticated by cookie.  `SameSite=Strict` is the primary defense;
+the token is defense-in-depth.  `/auth/login` is exempt (it establishes the
+first session), and Bearer-authenticated requests are exempt because they are
+not cookie-driven and cannot be forged cross-site.
 
 ## Authorization
 

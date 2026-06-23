@@ -55,6 +55,21 @@ locked for `LOGIN_LOCKOUT_MINUTES` and `/auth/login` returns `429` with a
 `Retry-After` header.  A successful login resets the counter.  See
 `SECURITY.md` for details.
 
+## Auth Cookies
+
+```sh
+COOKIE_SECURE=true
+COOKIE_SAMESITE=strict
+COOKIE_DOMAIN=
+```
+
+Access and refresh JWTs are delivered as httpOnly cookies (see `SECURITY.md`).
+`COOKIE_SECURE=true` marks them `Secure`, so they are sent only over HTTPS -
+production must terminate TLS.  Set `COOKIE_SECURE=false` for local plain-HTTP
+development, otherwise the browser will not send the cookies and every request
+appears unauthenticated.  Leave `COOKIE_DOMAIN` empty to scope cookies to the
+serving host.
+
 ## CORS
 
 `CORS_ORIGINS` is parsed as a list by Pydantic settings.
