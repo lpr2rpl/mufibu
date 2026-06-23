@@ -19,18 +19,17 @@ export function AuthProvider({ children }) {
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Tokens live in httpOnly cookies; the session (user + roles) is fetched
+  // from the backend, which reads those cookies.  Nothing is kept in
+  // localStorage, and the JWT is never read by JavaScript.
   const loadUser = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) { setLoading(false); return; }
     try {
       const { data } = await getMe();
-      setUser(data);
-      // Decode roles from token payload (middle part of JWT)
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      setRoles(payload.roles || []);
+      setUser(data.user);
+      setRoles(data.roles || []);
     } catch {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      setUser(null);
+      setRoles([]);
     } finally {
       setLoading(false);
     }
@@ -40,15 +39,12 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     const { data } = await apiLogin(username, password);
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    await loadUser();
+    setUser(data.user);
+    setRoles(data.roles || []);
   };
 
   const doLogout = async () => {
     try { await apiLogout(); } catch {}
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
     setUser(null);
     setRoles([]);
   };

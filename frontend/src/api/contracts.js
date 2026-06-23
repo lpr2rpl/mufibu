@@ -50,10 +50,11 @@ export const API_PATHS = {
  * @property {RoleScope} scope
  * @property {string=} tenant_id
  *
- * @typedef {Object} TokenResponse
- * @property {string} access_token
- * @property {string} refresh_token
- * @property {'bearer'} token_type
+ * Login, refresh, and /auth/me return this; tokens are delivered as httpOnly
+ * cookies, never in the body.
+ * @typedef {Object} AuthSession
+ * @property {Object} user
+ * @property {RoleClaim[]} roles
  *
  * @typedef {Object} PageParams
  * @property {number=} skip

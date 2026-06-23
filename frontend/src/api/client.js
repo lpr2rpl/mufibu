@@ -1,42 +1,54 @@
 import axios from 'axios';
 import { API_BASE_URL, API_PATHS } from './contracts';
 
+// Auth tokens live in httpOnly cookies (set by the backend), so the browser
+// attaches them automatically; withCredentials makes axios send them.
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
-// Attach JWT to every request
+// Read a non-httpOnly cookie (used only for the CSRF token).
+function readCookie(name) {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+const UNSAFE_METHODS = ['post', 'put', 'patch', 'delete'];
+
+// Double-submit CSRF: echo the csrf_token cookie in a header on unsafe methods.
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
+  if (UNSAFE_METHODS.includes((config.method || 'get').toLowerCase())) {
+    const csrf = readCookie('csrf_token');
+    if (csrf) {
+      config.headers['X-CSRF-Token'] = csrf;
+    }
   }
   return config;
 });
 
-// Auto-refresh on 401
+// On 401, attempt a single cookie-based refresh, then retry the original.
+// A shared promise coalesces concurrent refreshes.
+let refreshing = null;
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+    const isRefreshCall = original?.url?.includes(API_PATHS.auth.refresh);
+    if (error.response?.status === 401 && original && !original._retry && !isRefreshCall) {
       original._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          const { data } = await axios.post(`${API_BASE_URL}${API_PATHS.auth.refresh}`, {
-            refresh_token: refreshToken,
-          });
-          localStorage.setItem('access_token', data.access_token);
-          localStorage.setItem('refresh_token', data.refresh_token);
-          original.headers['Authorization'] = `Bearer ${data.access_token}`;
-          return api(original);
-        } catch {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+      try {
+        refreshing = refreshing || api.post(API_PATHS.auth.refresh);
+        await refreshing;
+        refreshing = null;
+        return api(original);
+      } catch (refreshError) {
+        refreshing = null;
+        if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
+        return Promise.reject(refreshError);
       }
     }
     return Promise.reject(error);
