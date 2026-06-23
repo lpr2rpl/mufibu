@@ -10,7 +10,8 @@ All repository artifacts must be ASCII7 (7-bit US-ASCII).  See "ASCII7 Policy".
 
 MuFiBu is a classic three-tier application:
 
-- Frontend: React 18 SPA, Axios client, JWT in browser local storage.
+- Frontend: React 18 SPA, Axios client; JWT auth via httpOnly cookies with
+  double-submit CSRF protection (no tokens in browser-readable storage).
 - Backend: FastAPI, SQLAlchemy ORM, Pydantic schemas, JWT auth.
 - Database: PostgreSQL with forced row-level security (RLS).
 
@@ -104,7 +105,8 @@ Strengths observed:
       `allow_methods=["*"]` and `allow_headers=["*"]` with
       `allow_credentials=True`.  Now restricted to the methods
       (`GET, POST, PATCH, DELETE, OPTIONS`) and headers
-      (`Authorization, Content-Type, X-Request-ID`) the client actually uses,
+      (`Authorization, Content-Type, X-Request-ID, X-CSRF-Token`) the client
+      actually uses,
       and exposes `X-Request-ID`.  Wildcards are also not honored by browsers
       for credentialed requests, so the explicit allowlist is more correct.
 
