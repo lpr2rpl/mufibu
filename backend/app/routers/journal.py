@@ -29,7 +29,7 @@ from app.auth.policies import (
 from app.database import get_db
 from app.pagination import build_page
 from app.journal_workflow import can_reverse, lines_balance_error, postable_error
-from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
+from app.models import Account, AuditLog, JournalEntry, JournalEntryLine, Tenant
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
     JournalEntryPage, JournalEntryReject, JournalEntryUpdate,
@@ -153,6 +153,9 @@ def create_entry(
     db: Session = Depends(get_db),
 ):
     require_journal_writer(current, tenant_id)
+
+    if not db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
     balance_err = lines_balance_error(body.lines)
     if balance_err:

@@ -22,29 +22,18 @@ from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_account_read, require_account_write
 from app.database import get_db
 from app.pagination import build_page
-from app.models import Account, AuditLog, JournalEntry
+from app.account_rules import cycle_exists
+from app.models import Account, AuditLog, JournalEntry, Tenant
 from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
 
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
 
 
-def _would_create_cycle(db: Session, account_id: uuid.UUID, proposed_parent_id: uuid.UUID) -> bool:
-    """Return True if making proposed_parent_id the parent of account_id would create a cycle.
-
-    Walks the ancestor chain from proposed_parent_id upward; if account_id appears in
-    that chain the new edge would form a loop.  A visited set prevents infinite recursion
-    on pre-existing corrupt data.  Needs a live DB -- tested via integration test.
-    """
-    visited: set = set()
-    current = proposed_parent_id
-    while current is not None:
-        if current == account_id:
-            return True
-        if current in visited:
-            break
-        visited.add(current)
-        current = db.query(Account.parent_account_id).filter(Account.id == current).scalar()
-    return False
+def _parent_of(db: Session):
+    """Return a parent_of callable backed by the live DB for use with cycle_exists."""
+    def _lookup(uid):
+        return db.query(Account.parent_account_id).filter(Account.id == uid).scalar()
+    return _lookup
 
 
 @router.get("", response_model=List[AccountOut])
@@ -93,6 +82,8 @@ def create_account(
     db: Session = Depends(get_db),
 ):
     require_account_write(current, tenant_id)
+    if not db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     if db.query(Account).filter(
         Account.tenant_id == tenant_id,
         Account.account_number == body.account_number,
@@ -185,7 +176,7 @@ def update_account(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="parent_account_id must belong to the same tenant",
                 )
-            if _would_create_cycle(db, account_id, new_parent):
+            if cycle_exists(account_id, new_parent, _parent_of(db)):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="parent_account_id would create a circular reference in the account hierarchy",

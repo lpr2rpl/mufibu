@@ -244,7 +244,11 @@ export default function Journal() {
                         {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td style={S.td}
-                        title={e.approval_notes ? `Approval note: ${e.approval_notes}` : undefined}>
+                        title={
+                          e.reversal_entry_id
+                            ? ('Reversed by: ' + ((entries.find(r => r.id === e.reversal_entry_id) || {}).entry_number || 'see reversal entry'))
+                            : (e.approval_notes ? ('Approval note: ' + e.approval_notes) : undefined)
+                        }>
                         <Badge label={e.status} variant={e.status} />
                       </td>
                       <td style={{ ...S.td, whiteSpace: 'nowrap' }}>

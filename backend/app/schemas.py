@@ -170,6 +170,8 @@ class AccountOut(BaseModel):
     description: Optional[str]
     is_active: bool
     created_at: datetime
+    modified_at: Optional[datetime]
+    modified_by: Optional[uuid.UUID]
     model_config = {"from_attributes": True}
 
 # ------------------------------------------------------------------

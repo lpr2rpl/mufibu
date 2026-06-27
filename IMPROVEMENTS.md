@@ -325,7 +325,28 @@ batch.
       Runs `scripts/concurrent_refresh_test.sh` consistently with the existing
       `auth-flow-test` and `rls-test` targets.
 
-## 5. ASCII7 Policy
+## 5. Round 5 Review (2026-06-27)
+
+### Hierarchy and Schema
+
+- [x] Circular parent_account_id detection added to `update_account`.
+      `_would_create_cycle` walks the ancestor chain from the proposed parent
+      upward; if the account being updated appears, a 400 is returned.  The
+      `AccountUpdate` schema gained an optional `parent_account_id` field so the
+      check is reachable via the PATCH endpoint.
+
+- [x] Migration 010: partial index on `journal_entries.reversed_at`.
+      `CREATE INDEX idx_je_reversed ON journal_entries(reversed_at) WHERE
+      reversed_at IS NOT NULL` added to both `schema.sql` (fresh installs) and
+      `database/migrations/010_reversal_index.sql` (existing installs).
+
+- [x] `MIGRATIONS.md` extended with migrations 007-010.
+      Files section and Apply Order block updated to cover all migrations.
+
+- [x] `IMPROVEMENTS.md` Round 3 and Round 4 sections added.
+      Both sections document what was done in each respective review cycle.
+
+## 6. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
 This keeps diffs, terminals, and toolchains free of encoding ambiguity.
