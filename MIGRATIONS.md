@@ -29,6 +29,10 @@ migration files.
   `audit_action` enum and three columns to `journal_entries`
   (`reversed_at`, `reversed_by`, `reversal_entry_id`) so that the original
   entry records when and by whom it was reversed.
+- `database/migrations/010_reversal_index.sql`: adds a partial index
+  `idx_je_reversed` on `journal_entries(reversed_at)` covering only rows
+  where `reversed_at IS NOT NULL`, keeping index size proportional to the
+  number of reversed entries rather than the full table.
 
 ## Apply Order
 
@@ -44,6 +48,7 @@ psql -v ON_ERROR_STOP=1 -f database/migrations/006_token_revocation.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/007_active_account_enforcement.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/008_approval_notes.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/009_reversal_tracking.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/010_reversal_index.sql
 ```
 
 The setup script and the smoke test apply every file in

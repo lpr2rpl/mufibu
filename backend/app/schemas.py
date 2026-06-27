@@ -158,6 +158,7 @@ class AccountUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    parent_account_id: Optional[uuid.UUID] = None
 
 class AccountOut(BaseModel):
     id: uuid.UUID

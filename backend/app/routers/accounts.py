@@ -28,6 +28,25 @@ from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
 
 
+def _would_create_cycle(db: Session, account_id: uuid.UUID, proposed_parent_id: uuid.UUID) -> bool:
+    """Return True if making proposed_parent_id the parent of account_id would create a cycle.
+
+    Walks the ancestor chain from proposed_parent_id upward; if account_id appears in
+    that chain the new edge would form a loop.  A visited set prevents infinite recursion
+    on pre-existing corrupt data.  Needs a live DB -- tested via integration test.
+    """
+    visited: set = set()
+    current = proposed_parent_id
+    while current is not None:
+        if current == account_id:
+            return True
+        if current in visited:
+            break
+        visited.add(current)
+        current = db.query(Account.parent_account_id).filter(Account.id == current).scalar()
+    return False
+
+
 @router.get("", response_model=List[AccountOut])
 def list_accounts(
     tenant_id: uuid.UUID,
@@ -147,11 +166,31 @@ def update_account(
     ).first()
     if not acct:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    old = {"name": acct.name, "description": acct.description, "is_active": acct.is_active}
+    old = {"name": acct.name, "description": acct.description, "is_active": acct.is_active,
+           "parent_account_id": str(acct.parent_account_id) if acct.parent_account_id else None}
     if body.name is not None:
         acct.name = body.name
     if body.description is not None:
         acct.description = body.description
+    if "parent_account_id" in body.model_fields_set:
+        new_parent = body.parent_account_id
+        if new_parent is not None:
+            parent = db.query(Account).filter(
+                Account.id == new_parent,
+                Account.tenant_id == tenant_id,
+                Account.deleted_at.is_(None),
+            ).first()
+            if not parent:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="parent_account_id must belong to the same tenant",
+                )
+            if _would_create_cycle(db, account_id, new_parent):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="parent_account_id would create a circular reference in the account hierarchy",
+                )
+        acct.parent_account_id = new_parent
     if body.is_active is not None:
         if body.is_active is False and acct.is_active:
             blocking = db.query(JournalEntry).filter(

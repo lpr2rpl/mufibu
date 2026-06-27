@@ -246,7 +246,86 @@ batch.
       and one special character (non-alphanumeric).  The user creation form in
       `frontend/src/pages/Users.jsx` displays the requirement as hint text.
 
-## 4. ASCII7 Policy
+## 3. Third Artifact Review (2026-06-27)
+
+### Security and Correctness
+
+- [x] Prevent double-reversals.
+      `can_reverse` in `backend/app/journal_workflow.py` now accepts an optional
+      `reversed_at` parameter; passing a non-None value returns an error message.
+      The router passes `entry.reversed_at` so the check is enforced at request time.
+      Two new unit tests cover the already-reversed case.
+
+- [x] Stamp original entry on reversal.
+      `reverse_entry` now writes `reversed_at`, `reversed_by`, and `reversal_entry_id`
+      back to the original entry and writes a `REVERSE` audit record (new enum value)
+      instead of a generic `INSERT`.  Migration 009 adds the three columns and the
+      new enum value.
+
+- [x] Include `approval_notes` in journal entry search.
+      The `ILIKE` filter in `_entry_list_query` now includes `approval_notes` alongside
+      `entry_number`, `description`, `reference`, and `notes`.
+
+- [x] Exempt `/api/v1/health/db` from nginx rate limiting.
+      A dedicated `location = /api/v1/health/db` block (no `limit_req` directive) was
+      added alongside the existing `/api/v1/health` block so readiness probes are not
+      throttled.
+
+### Testing and Documentation
+
+- [x] Concurrent token-refresh race condition integration test.
+      `scripts/concurrent_refresh_test.py` fires two simultaneous `POST /auth/refresh`
+      requests sharing the same refresh-token cookie via `threading.Thread` and asserts
+      no 5xx, at least one 200, and the second response is 200 or 401.
+      `scripts/concurrent_refresh_test.sh` provisions a throwaway database and
+      invokes the script.  `make concurrent-refresh-test` runs it.
+
+- [x] Response shape contract tests extended.
+      `frontend/src/api/contracts.test.js` updated: `JournalEntry` shape now asserts
+      the three reversal tracking fields (`reversed_at`, `reversed_by`,
+      `reversal_entry_id`).
+
+- [x] Schema: `REVERSE` added to `audit_action` enum.
+      Both `database/schema.sql` (for fresh installs) and migration 009 (using
+      `ADD VALUE IF NOT EXISTS` for existing installs) carry the new enum value.
+      `backend/app/models.py` `AuditLog.action` SAEnum updated to match.
+
+## 4. Fourth Artifact Review (2026-06-27)
+
+### Schema Completeness
+
+- [x] Expose missing provenance fields in `JournalEntryOut`.
+      `submitted_at`, `submitted_by`, `rejected_by`, and `posted_by` were present
+      on the SQLAlchemy model but absent from the Pydantic response schema.  All
+      four are now included in `JournalEntryOut` so API consumers can display the
+      full submission and rejection lifecycle without querying the audit log.
+
+### Security and Correctness
+
+- [x] Account deactivation guard.
+      `update_account` in `backend/app/routers/accounts.py` now rejects
+      `PATCH /accounts/{id}` with `is_active: false` when any non-deleted journal
+      entry in `draft`, `pending_approval`, or `approved` status references the
+      account.  The error response includes the blocking entry number and status.
+
+### UX
+
+- [x] Reverse button disabled for already-reversed entries.
+      The Reverse button in `frontend/src/pages/Journal.jsx` now checks
+      `e.reversed_at` in addition to `e.status === 'posted'`.  Entries that have
+      already been reversed no longer show the button, preventing a click-through
+      to a guaranteed 409 response.
+
+### Documentation
+
+- [x] `MIGRATIONS.md` updated with migrations 007, 008, 009.
+      The Files section and Apply Order block now document all migrations through 009.
+
+- [x] `Makefile` `concurrent-refresh-test` target added.
+      Runs `scripts/concurrent_refresh_test.sh` consistently with the existing
+      `auth-flow-test` and `rls-test` targets.
+
+## 5. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
 This keeps diffs, terminals, and toolchains free of encoding ambiguity.

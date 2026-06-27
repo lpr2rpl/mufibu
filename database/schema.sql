@@ -264,6 +264,7 @@ CREATE INDEX idx_je_tenant ON journal_entries(tenant_id);
 CREATE INDEX idx_je_date   ON journal_entries(tenant_id, entry_date);
 CREATE INDEX idx_je_status ON journal_entries(tenant_id, status);
 CREATE INDEX idx_je_created_by ON journal_entries(created_by);
+CREATE INDEX idx_je_reversed ON journal_entries(reversed_at) WHERE reversed_at IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Journal Entry Lines  (for multi-line / split bookings)
