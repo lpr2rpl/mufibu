@@ -100,7 +100,7 @@ export default function Accounts() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Number', 'Name', 'Type', 'Description', 'Status', canWrite && 'Actions'].filter(Boolean).map(h => (
+                  {['Number', 'Name', 'Type', 'Description', 'Status', 'Last Modified', canWrite && 'Actions'].filter(Boolean).map(h => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
                 </tr>
@@ -118,6 +118,9 @@ export default function Accounts() {
                       <td style={{ ...S.td, color: '#888' }}>{a.description || '-'}</td>
                       <td style={S.td}>
                         <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />
+                      </td>
+                      <td style={{ ...S.td, fontSize: 12, color: '#888' }}>
+                        {a.modified_at ? new Date(a.modified_at).toLocaleDateString() : '\u2014'}
                       </td>
                       {canWrite && (
                         <td style={S.td}>

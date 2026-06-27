@@ -539,8 +539,13 @@ def soft_delete_entry(
     if entry.created_by != current.id and not current.is_power_user(tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
-    entry.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    entry.deleted_at = now
     entry.deleted_by = current.id
+    for line in entry.lines:
+        if line.deleted_at is None:
+            line.deleted_at = now
+            line.deleted_by = current.id
     db.add(AuditLog(
         user_id=current.id, tenant_id=tenant_id, action="SOFT_DELETE",
         table_name="journal_entries", record_id=entry_id,

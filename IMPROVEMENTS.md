@@ -346,7 +346,32 @@ batch.
 - [x] `IMPROVEMENTS.md` Round 3 and Round 4 sections added.
       Both sections document what was done in each respective review cycle.
 
-## 6. ASCII7 Policy
+## 6. Round 6 Review (2026-06-27)
+
+### Correctness and Testability
+
+- [x] `cycle_exists` extracted to `backend/app/account_rules.py` (pure module,
+      no DB imports), mirroring `journal_workflow.py`.  `accounts.py` delegates
+      via a DB-backed closure.  Seven unit tests added in
+      `backend/tests/test_account_rules.py` covering self-parent, 2-node and
+      3-node cycles, no-cycle, None parent, off-tree parent, and corrupt-data
+      loop guard.
+
+- [x] `AccountOut` completeness: `modified_at` and `modified_by` added to the
+      Pydantic response schema so callers can surface last-edit provenance.
+
+- [x] Tenant soft-delete guard added to `create_account` and `create_entry`:
+      both return HTTP 404 if the tenant exists but has `deleted_at` set,
+      preventing resource creation under a retired tenant.
+
+- [x] `Journal.jsx` reversal cross-reference: the status cell now shows a
+      tooltip "Reversed by: <entry_number>" for entries whose `reversal_entry_id`
+      is set, letting users identify the reversal without navigating away.
+
+- [x] `IMPROVEMENTS.md` Round 5 section added and ASCII7 Policy renumbered
+      from section 5 to section 6 to preserve document ordering.
+
+## 7. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
 This keeps diffs, terminals, and toolchains free of encoding ambiguity.

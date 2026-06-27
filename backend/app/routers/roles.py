@@ -191,6 +191,20 @@ def assign_role(
     if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
 
+    # Prevent duplicate active assignment for the same user/role/tenant
+    duplicate = db.query(UserRoleAssignment).filter(
+        UserRoleAssignment.user_id == body.user_id,
+        UserRoleAssignment.role_id == role.id,
+        UserRoleAssignment.tenant_id == body.tenant_id,
+        UserRoleAssignment.is_active == True,
+        UserRoleAssignment.deleted_at.is_(None),
+    ).first()
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User already has an active assignment for this role in this tenant",
+        )
+
     now = datetime.now(timezone.utc)
     ura = UserRoleAssignment(
         user_id=body.user_id,
