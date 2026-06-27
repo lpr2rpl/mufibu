@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
-  getJournalEntries, getAccounts, createJournalEntry,
+  getJournalEntriesPage, getAccounts, createJournalEntry,
   approveEntry, rejectEntry, postEntry, submitEntry,
 } from '../api/client';
 import Badge from '../components/Badge';
@@ -12,8 +12,10 @@ import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 import { truncateId } from '../utils/roles';
 import { apiError } from '../utils/apiError';
+import { pageOffset } from '../utils/pagination';
 import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = {
@@ -53,6 +55,7 @@ export default function Journal() {
   const toast = useToast();
 
   const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -60,12 +63,15 @@ export default function Journal() {
   const [rejectReason, setRejectReason] = useState('');
   const [confirmPost, setConfirmPost] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(makeEmptyForm);
 
-  const searchTimer = useRef(null);
+  const search = useDebouncedValue(searchInput, 400);
+  const queryKey = `${filterStatus}::${search}`;
+  const lastQueryRef = useRef(queryKey);
 
   useEffect(() => {
     getAccounts(tenantId)
@@ -74,18 +80,25 @@ export default function Journal() {
   }, [tenantId]);
 
   const load = useCallback(async () => {
+    if (lastQueryRef.current !== queryKey && page !== 0) {
+      lastQueryRef.current = queryKey;
+      setPage(0);
+      return;
+    }
+    lastQueryRef.current = queryKey;
     setLoading(true);
     try {
-      const params = { skip: page * LIMIT, limit: LIMIT };
+      const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (filterStatus) params.status = filterStatus;
       if (search.trim()) params.search = search.trim();
-      const { data } = await getJournalEntries(tenantId, params);
-      setEntries(data);
+      const { data } = await getJournalEntriesPage(tenantId, params);
+      setEntries(data.items || []);
+      setTotal(data.total || 0);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load entries'));
     }
     setLoading(false);
-  }, [tenantId, filterStatus, search, page]);
+  }, [tenantId, filterStatus, search, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -98,7 +111,7 @@ export default function Journal() {
       setShowForm(false);
       setForm(makeEmptyForm());
       setPage(0);
-      load();
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to create entry'));
     }
@@ -109,7 +122,7 @@ export default function Journal() {
     try {
       await submitEntry(tenantId, entry.id);
       toast.success('Entry submitted for approval.');
-      load();
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to submit entry'));
     }
@@ -119,7 +132,7 @@ export default function Journal() {
     try {
       await approveEntry(tenantId, entry.id, {});
       toast.success('Entry approved.');
-      load();
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to approve'));
     }
@@ -131,7 +144,7 @@ export default function Journal() {
       toast.success('Entry rejected.');
       setRejectModal(null);
       setRejectReason('');
-      load();
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to reject'));
     }
@@ -142,7 +155,7 @@ export default function Journal() {
       await postEntry(tenantId, confirmPost.id);
       toast.success('Entry posted.');
       setConfirmPost(null);
-      load();
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to post'));
     }
@@ -166,11 +179,9 @@ export default function Journal() {
         <input
           style={S.searchInput}
           placeholder="Search description, number..."
-          value={search}
+          value={searchInput}
           onChange={e => {
-            setSearch(e.target.value);
-            clearTimeout(searchTimer.current);
-            searchTimer.current = setTimeout(() => setPage(0), 400);
+            setSearchInput(e.target.value);
           }}
         />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -240,7 +251,7 @@ export default function Journal() {
                 </tbody>
               </table>
             )}
-            <Pagination page={page} onPage={setPage} hasMore={entries.length === LIMIT} />
+            <Pagination page={page} onPage={setPage} total={total} limit={LIMIT} />
           </>
         )}
       </div>

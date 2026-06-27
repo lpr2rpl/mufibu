@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, getJournalEntries } from '../api/client';
+import { getTenants, getJournalEntriesPage } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
 import { getTenantIds, truncateId } from '../utils/roles';
@@ -57,8 +57,8 @@ export default function Dashboard() {
       promises.push(
         Promise.all(
           tenantIds.map(tid =>
-            getJournalEntries(tid, { limit: 5, skip: 0 })
-              .then(({ data }) => [tid, data])
+            getJournalEntriesPage(tid, { limit: 5, skip: 0 })
+              .then(({ data }) => [tid, data.items || []])
               .catch(() => [tid, []])
           )
         ).then(results => {

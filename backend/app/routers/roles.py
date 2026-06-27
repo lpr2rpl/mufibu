@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.permissions import POWER_ADMIN_ONLY_ROLES
 from app.database import get_db
+from app.pagination import build_page
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.schemas import (
     RoleAssignmentCreate, RoleAssignmentExtend, RoleAssignmentOut,
@@ -35,7 +36,7 @@ router = APIRouter(prefix="/roles", tags=["roles"])
 
 @router.get("", response_model=List[RoleOut])
 def list_roles(current: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Role).all()
+    return db.query(Role).order_by(Role.name).all()
 
 
 @router.get("/page", response_model=RolePage)
@@ -46,9 +47,7 @@ def list_roles_page(
     db: Session = Depends(get_db),
 ):
     q = db.query(Role)
-    total = q.count()
-    items = q.offset(skip).limit(limit).all()
-    return RolePage(total=total, skip=skip, limit=limit, items=items)
+    return build_page(RolePage, q.order_by(Role.name), skip, limit)
 
 
 # ------------------------------------------------------------------
@@ -125,7 +124,7 @@ def list_assignments(
     db: Session = Depends(get_db),
 ):
     q = _assignment_query(db, current, user_id, tenant_id, active_only)
-    assignments = q.offset(skip).limit(limit).all()
+    assignments = q.order_by(UserRoleAssignment.assigned_at.desc()).offset(skip).limit(limit).all()
     return [_assignment_out(a) for a in assignments]
 
 
@@ -140,14 +139,7 @@ def list_assignments_page(
     db: Session = Depends(get_db),
 ):
     q = _assignment_query(db, current, user_id, tenant_id, active_only)
-    total = q.count()
-    assignments = q.offset(skip).limit(limit).all()
-    return RoleAssignmentPage(
-        total=total,
-        skip=skip,
-        limit=limit,
-        items=[_assignment_out(a) for a in assignments],
-    )
+    return build_page(RoleAssignmentPage, q.order_by(UserRoleAssignment.assigned_at.desc()), skip, limit, _assignment_out)
 
 
 @router.post("/assignments", response_model=RoleAssignmentOut, status_code=status.HTTP_201_CREATED)

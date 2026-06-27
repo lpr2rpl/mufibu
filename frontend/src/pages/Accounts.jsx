@@ -2,15 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getAccounts, createAccount, updateAccount } from '../api/client';
+import { getAccountsPage, createAccount, updateAccount } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import { apiError } from '../utils/apiError';
+import Pagination from '../components/Pagination';
+import { pageOffset } from '../utils/pagination';
 import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = { card, th, td, input, label, btn };
+const LIMIT = 25;
 
 const TYPE_COLORS = {
   asset:     ['#e3f2fd', '#1565c0'],
@@ -29,7 +32,10 @@ export default function Accounts() {
   const canWrite = canWriteAccounts(tenantId);
 
   const [accounts, setAccounts] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -37,13 +43,14 @@ export default function Accounts() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await getAccounts(tenantId, { active_only: false });
-      setAccounts(data);
+      const { data } = await getAccountsPage(tenantId, { skip: pageOffset(page, LIMIT), limit: LIMIT, active_only: false });
+      setAccounts(data.items || []);
+      setTotal(data.total || 0);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load accounts'));
     }
     setLoading(false);
-  }, [tenantId]);
+  }, [tenantId, page, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -60,7 +67,8 @@ export default function Accounts() {
       setShowForm(false);
       setEditAcct(null);
       setForm(EMPTY_FORM);
-      load();
+      setPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Operation failed'));
     }
@@ -88,38 +96,41 @@ export default function Accounts() {
         ) : accounts.length === 0 ? (
           <EmptyState message="No accounts yet. Create your first account." />
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Number', 'Name', 'Type', 'Description', 'Status', canWrite && 'Actions'].filter(Boolean).map(h => (
-                  <th key={h} style={S.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map(a => {
-                const [bg, color] = TYPE_COLORS[a.account_type] || ['#f5f5f5', '#555'];
-                return (
-                  <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.5 }}>
-                    <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 600 }}>{a.account_number}</td>
-                    <td style={S.td}>{a.name}</td>
-                    <td style={S.td}>
-                      <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{a.account_type}</span>
-                    </td>
-                    <td style={{ ...S.td, color: '#888' }}>{a.description || '-'}</td>
-                    <td style={S.td}>
-                      <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />
-                    </td>
-                    {canWrite && (
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Number', 'Name', 'Type', 'Description', 'Status', canWrite && 'Actions'].filter(Boolean).map(h => (
+                    <th key={h} style={S.th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map(a => {
+                  const [bg, color] = TYPE_COLORS[a.account_type] || ['#f5f5f5', '#555'];
+                  return (
+                    <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.5 }}>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 600 }}>{a.account_number}</td>
+                      <td style={S.td}>{a.name}</td>
                       <td style={S.td}>
-                        <button style={{ ...S.btn('#455a64'), padding: '4px 10px', fontSize: 12 }} onClick={() => openEdit(a)}>Edit</button>
+                        <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{a.account_type}</span>
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td style={{ ...S.td, color: '#888' }}>{a.description || '-'}</td>
+                      <td style={S.td}>
+                        <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />
+                      </td>
+                      {canWrite && (
+                        <td style={S.td}>
+                          <button style={{ ...S.btn('#455a64'), padding: '4px 10px', fontSize: 12 }} onClick={() => openEdit(a)}>Edit</button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <Pagination page={page} onPage={setPage} total={total} limit={LIMIT} />
+          </>
         )}
       </div>
 

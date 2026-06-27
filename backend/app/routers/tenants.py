@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_power_admin
 from app.database import get_db
+from app.pagination import build_page
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
 from app.schemas import TenantCreate, TenantOut, TenantPage
 
@@ -29,6 +30,7 @@ def list_tenants(
     return (
         db.query(Tenant)
         .filter(Tenant.deleted_at.is_(None))
+        .order_by(Tenant.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -45,9 +47,7 @@ def list_tenants_page(
     if not (current.is_power_admin() or current.is_auditor()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     q = db.query(Tenant).filter(Tenant.deleted_at.is_(None))
-    total = q.count()
-    items = q.offset(skip).limit(limit).all()
-    return TenantPage(total=total, skip=skip, limit=limit, items=items)
+    return build_page(TenantPage, q.order_by(Tenant.created_at.desc()), skip, limit)
 
 
 @router.post("", response_model=TenantOut, status_code=status.HTTP_201_CREATED)

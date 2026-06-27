@@ -1,36 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, createTenant } from '../api/client';
+import { getTenantsPage, createTenant } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import Pagination from '../components/Pagination';
 import { apiError } from '../utils/apiError';
+import { pageOffset } from '../utils/pagination';
 import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = { card, th, td, input, label, btn };
+const LIMIT = 25;
 
 export default function Tenants() {
   const { isPowerAdmin } = useAuth();
   const toast = useToast();
   const [tenants, setTenants] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await getTenants();
-      setTenants(data);
+      const { data } = await getTenantsPage({ skip: pageOffset(page, LIMIT), limit: LIMIT });
+      setTenants(data.items || []);
+      setTotal(data.total || 0);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load tenants'));
     }
     setLoading(false);
-  }, []);
+  }, [page, reloadToken]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (isPowerAdmin()) {
+      load();
+    }
+  }, [isPowerAdmin, load]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -39,7 +50,8 @@ export default function Tenants() {
       toast.success(`Tenant "${form.name}" created.`);
       setShowForm(false);
       setForm({ name: '', description: '' });
-      load();
+      setPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to create tenant'));
     }
@@ -61,21 +73,24 @@ export default function Tenants() {
         ) : tenants.length === 0 ? (
           <EmptyState message="No tenants yet." />
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>
-              {['Name', 'Description', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {tenants.map(t => (
-                <tr key={t.id}>
-                  <td style={{ ...S.td, fontWeight: 600 }}>{t.name}</td>
-                  <td style={{ ...S.td, color: '#666' }}>{t.description || '\u2014'}</td>
-                  <td style={S.td}><Badge label={t.is_active ? 'Active' : 'Inactive'} variant={t.is_active ? 'active' : 'inactive'} /></td>
-                  <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(t.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Name', 'Description', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {tenants.map(t => (
+                  <tr key={t.id}>
+                    <td style={{ ...S.td, fontWeight: 600 }}>{t.name}</td>
+                    <td style={{ ...S.td, color: '#666' }}>{t.description || '\u2014'}</td>
+                    <td style={S.td}><Badge label={t.is_active ? 'Active' : 'Inactive'} variant={t.is_active ? 'active' : 'inactive'} /></td>
+                    <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(t.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination page={page} onPage={setPage} total={total} limit={LIMIT} />
+          </>
         )}
       </div>
 

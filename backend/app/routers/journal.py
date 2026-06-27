@@ -27,6 +27,7 @@ from app.auth.policies import (
     require_journal_writer,
 )
 from app.database import get_db
+from app.pagination import build_page
 from app.journal_workflow import lines_balance_error, postable_error
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
 from app.schemas import (
@@ -139,9 +140,7 @@ def list_entries_page(
 ):
     require_journal_read(current, tenant_id)
     q = _entry_list_query(db, tenant_id, entry_status, from_date, to_date, search)
-    total = q.count()
-    items = q.order_by(JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
-    return JournalEntryPage(total=total, skip=skip, limit=limit, items=items)
+    return build_page(JournalEntryPage, q.order_by(JournalEntry.entry_number.desc()), skip, limit)
 
 
 @router.post("", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)

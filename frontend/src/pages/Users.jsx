@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getUsers, createUser, getRoles, getAssignments, assignRole, revokeAssignment, extendAssignment, getTenants } from '../api/client';
+import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Pagination from '../components/Pagination';
 import { truncateId } from '../utils/roles';
 import { apiError } from '../utils/apiError';
+import { pageOffset } from '../utils/pagination';
 import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = {
@@ -20,6 +22,7 @@ const S = {
 };
 
 const POWER_ADMIN_ONLY_ROLES = ['Admin', 'Officer'];
+const LIMIT = 25;
 
 export default function Users() {
   const { isPowerAdmin, roles: myRoles } = useAuth();
@@ -31,6 +34,11 @@ export default function Users() {
   const [allRoles, setAllRoles] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userPage, setUserPage] = useState(0);
+  const [userTotal, setUserTotal] = useState(0);
+  const [assignmentPage, setAssignmentPage] = useState(0);
+  const [assignmentTotal, setAssignmentTotal] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const [showUserForm, setShowUserForm] = useState(false);
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [extendModal, setExtendModal] = useState(null);
@@ -45,20 +53,22 @@ export default function Users() {
     setLoading(true);
     try {
       const [u, a, r, t] = await Promise.all([
-        getUsers(),
-        getAssignments({ active_only: false }),
+        getUsersPage({ skip: pageOffset(userPage, LIMIT), limit: LIMIT }),
+        getAssignmentsPage({ skip: pageOffset(assignmentPage, LIMIT), limit: LIMIT, active_only: false }),
         getRoles(),
         isPowerAdmin() ? getTenants() : Promise.resolve({ data: [] }),
       ]);
-      setUsers(u.data);
-      setAssignments(a.data);
+      setUsers(u.data.items || []);
+      setUserTotal(u.data.total || 0);
+      setAssignments(a.data.items || []);
+      setAssignmentTotal(a.data.total || 0);
       setAllRoles(r.data);
       setTenants(t.data);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load'));
     }
     setLoading(false);
-  }, [isPowerAdmin]);
+  }, [assignmentPage, isPowerAdmin, reloadToken, userPage]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -69,7 +79,8 @@ export default function Users() {
       toast.success(`User "${userForm.username}" created.`);
       setShowUserForm(false);
       setUserForm({ username: '', email: '', password: '', full_name: '' });
-      load();
+      setUserPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to create user'));
     }
@@ -86,7 +97,8 @@ export default function Users() {
       toast.success('Role assigned successfully.');
       setShowAssignForm(false);
       setAssignForm({ user_id: '', role_name: '', tenant_id: '', valid_until: '' });
-      load();
+      setAssignmentPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to assign role'));
     }
@@ -97,7 +109,8 @@ export default function Users() {
       await revokeAssignment(confirmRevoke.id, {});
       toast.success('Role assignment revoked.');
       setConfirmRevoke(null);
-      load();
+      setAssignmentPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to revoke'));
     }
@@ -109,7 +122,8 @@ export default function Users() {
       toast.success('Assignment extended.');
       setExtendModal(null);
       setNewValidUntil('');
-      load();
+      setAssignmentPage(0);
+      setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to extend'));
     }
@@ -143,24 +157,27 @@ export default function Users() {
             {loading ? loadingRow : users.length === 0 ? (
               <EmptyState message="No users found." />
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>
-                  {['Username', 'Full Name', 'Email', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ ...S.td, fontWeight: 600 }}>{u.username}</td>
-                      <td style={S.td}>{u.full_name || '\u2014'}</td>
-                      <td style={S.td}>{u.email}</td>
-                      <td style={S.td}>
-                        <Badge label={u.is_active ? 'Active' : 'Inactive'} variant={u.is_active ? 'active' : 'inactive'} />
-                      </td>
-                      <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    {['Username', 'Full Name', 'Email', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id}>
+                        <td style={{ ...S.td, fontWeight: 600 }}>{u.username}</td>
+                        <td style={S.td}>{u.full_name || '\u2014'}</td>
+                        <td style={S.td}>{u.email}</td>
+                        <td style={S.td}>
+                          <Badge label={u.is_active ? 'Active' : 'Inactive'} variant={u.is_active ? 'active' : 'inactive'} />
+                        </td>
+                        <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination page={userPage} onPage={setUserPage} total={userTotal} limit={LIMIT} />
+              </>
             )}
           </>
         )}
@@ -175,37 +192,40 @@ export default function Users() {
             {loading ? loadingRow : assignments.length === 0 ? (
               <EmptyState message="No role assignments found." />
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>
-                  {['User', 'Role', 'Tenant', 'Valid From', 'Valid Until', 'Active', 'Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {assignments.map(a => (
-                    <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.5 }}>
-                      <td style={S.td}>{a.username || truncateId(a.user_id)}</td>
-                      <td style={S.td}><strong>{a.role_name}</strong></td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{a.tenant_name || (a.tenant_id ? truncateId(a.tenant_id) : 'Global')}</td>
-                      <td style={{ ...S.td, fontSize: 12 }}>{new Date(a.valid_from).toLocaleDateString()}</td>
-                      <td style={{ ...S.td, fontSize: 12, color: a.valid_until ? '#555' : '#888' }}>
-                        {a.valid_until ? new Date(a.valid_until).toLocaleDateString() : 'Open-ended'}
-                      </td>
-                      <td style={S.td}>
-                        <Badge label={a.is_active ? 'Yes' : 'No'} variant={a.is_active ? 'active' : 'inactive'} />
-                      </td>
-                      <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
-                        {a.is_active && (
-                          <>
-                            <button style={{ ...S.btn('#455a64'), padding: '3px 8px', fontSize: 12, marginRight: 4 }}
-                              onClick={() => { setExtendModal(a); setNewValidUntil(''); }}>Extend</button>
-                            <button style={{ ...S.btn('#c62828'), padding: '3px 8px', fontSize: 12 }}
-                              onClick={() => setConfirmRevoke(a)}>Revoke</button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    {['User', 'Role', 'Tenant', 'Valid From', 'Valid Until', 'Active', 'Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {assignments.map(a => (
+                      <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.5 }}>
+                        <td style={S.td}>{a.username || truncateId(a.user_id)}</td>
+                        <td style={S.td}><strong>{a.role_name}</strong></td>
+                        <td style={{ ...S.td, fontSize: 12 }}>{a.tenant_name || (a.tenant_id ? truncateId(a.tenant_id) : 'Global')}</td>
+                        <td style={{ ...S.td, fontSize: 12 }}>{new Date(a.valid_from).toLocaleDateString()}</td>
+                        <td style={{ ...S.td, fontSize: 12, color: a.valid_until ? '#555' : '#888' }}>
+                          {a.valid_until ? new Date(a.valid_until).toLocaleDateString() : 'Open-ended'}
+                        </td>
+                        <td style={S.td}>
+                          <Badge label={a.is_active ? 'Yes' : 'No'} variant={a.is_active ? 'active' : 'inactive'} />
+                        </td>
+                        <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
+                          {a.is_active && (
+                            <>
+                              <button style={{ ...S.btn('#455a64'), padding: '3px 8px', fontSize: 12, marginRight: 4 }}
+                                onClick={() => { setExtendModal(a); setNewValidUntil(''); }}>Extend</button>
+                              <button style={{ ...S.btn('#c62828'), padding: '3px 8px', fontSize: 12 }}
+                                onClick={() => setConfirmRevoke(a)}>Revoke</button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination page={assignmentPage} onPage={setAssignmentPage} total={assignmentTotal} limit={LIMIT} />
+              </>
             )}
           </>
         )}

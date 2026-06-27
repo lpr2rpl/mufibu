@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_power_admin
 from app.database import get_db
+from app.pagination import build_page
 from app.models import AuditLog, User
 from app.schemas import UserCreate, UserOut, UserPage, UserUpdate
 
@@ -33,7 +34,10 @@ def list_users(
         return (
             db.query(User)
             .filter(User.deleted_at.is_(None))
-            .offset(skip).limit(limit).all()
+            .order_by(User.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
     return [current.user]
 
@@ -47,9 +51,7 @@ def list_users_page(
 ):
     if current.is_power_admin() or current.is_auditor():
         q = db.query(User).filter(User.deleted_at.is_(None))
-        total = q.count()
-        items = q.offset(skip).limit(limit).all()
-        return UserPage(total=total, skip=skip, limit=limit, items=items)
+        return build_page(UserPage, q.order_by(User.created_at.desc()), skip, limit)
 
     items = [current.user] if skip == 0 else []
     return UserPage(total=1, skip=skip, limit=limit, items=items[:limit])

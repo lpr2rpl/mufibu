@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_account_read, require_account_write
 from app.database import get_db
+from app.pagination import build_page
 from app.models import Account, AuditLog
 from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
 
@@ -61,9 +62,7 @@ def list_accounts_page(
         q = q.filter(Account.is_active == True)
     if account_type:
         q = q.filter(Account.account_type == account_type)
-    total = q.count()
-    items = q.order_by(Account.account_number).offset(skip).limit(limit).all()
-    return AccountPage(total=total, skip=skip, limit=limit, items=items)
+    return build_page(AccountPage, q.order_by(Account.account_number), skip, limit)
 
 
 @router.post("", response_model=AccountOut, status_code=status.HTTP_201_CREATED)

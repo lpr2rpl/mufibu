@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.database import get_db
+from app.pagination import build_page
 from app.models import AuditLog
 from app.schemas import AuditLogOut, AuditLogPage
 
@@ -41,7 +42,7 @@ def _audit_query(
 
     officer_tenant_ids = [
         r.get("tenant_id")
-        for r in current._roles
+        for r in current.roles
         if r.get("role") == "Officer" and r.get("tenant_id")
     ]
     is_officer = bool(officer_tenant_ids)
@@ -105,6 +106,4 @@ def list_audit_log_page(
     db: Session = Depends(get_db),
 ):
     q = _audit_query(db, current, tenant_id, user_id, action, table_name)
-    total = q.count()
-    items = q.order_by(AuditLog.occurred_at.desc()).offset(skip).limit(limit).all()
-    return AuditLogPage(total=total, skip=skip, limit=limit, items=items)
+    return build_page(AuditLogPage, q.order_by(AuditLog.occurred_at.desc()), skip, limit)

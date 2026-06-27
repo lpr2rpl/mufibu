@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getAuditLog } from '../api/client';
+import { getAuditLogPage } from '../api/client';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import Pagination from '../components/Pagination';
 import { truncateId } from '../utils/roles';
 import { apiError } from '../utils/apiError';
+import { pageOffset } from '../utils/pagination';
 import { card, th, td, input, btn } from '../styles/common';
 
 const S = { card, th, td, input, btn };
@@ -27,24 +28,35 @@ export default function Audit() {
   const toast = useToast();
   const isOfficer = roles.some(r => r.role === 'Officer');
   const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('');
   const [table, setTable] = useState('');
   const [page, setPage] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
+  const queryKey = `${action}::${table}`;
+  const lastQueryRef = useRef(queryKey);
 
   const load = useCallback(async () => {
+    if (lastQueryRef.current !== queryKey && page !== 0) {
+      lastQueryRef.current = queryKey;
+      setPage(0);
+      return;
+    }
+    lastQueryRef.current = queryKey;
     setLoading(true);
     try {
-      const params = { skip: page * LIMIT, limit: LIMIT };
+      const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (action) params.action = action;
       if (table) params.table_name = table;
-      const { data } = await getAuditLog(params);
-      setEntries(data);
+      const { data } = await getAuditLogPage(params);
+      setEntries(data.items || []);
+      setTotal(data.total || 0);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load audit log'));
     }
     setLoading(false);
-  }, [action, table, page]);
+  }, [action, table, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -67,7 +79,7 @@ export default function Audit() {
           <option value="">All tables</option>
           {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <button onClick={load} style={S.btn()}>Refresh</button>
+        <button onClick={() => setReloadToken((n) => n + 1)} style={S.btn()}>Refresh</button>
       </div>
 
       <div style={S.card}>
@@ -111,7 +123,7 @@ export default function Audit() {
                 </tbody>
               </table>
             )}
-            <Pagination page={page} onPage={setPage} hasMore={entries.length === LIMIT} />
+            <Pagination page={page} onPage={setPage} total={total} limit={LIMIT} />
           </>
         )}
       </div>

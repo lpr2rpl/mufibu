@@ -7,7 +7,13 @@ const btnStyle = (disabled) => ({
   color: disabled ? '#bbb' : '#333', fontSize: 13,
 });
 
-export default function Pagination({ page, onPage, hasMore }) {
+export default function Pagination({ page, onPage, hasMore, total, limit }) {
+  const derivedHasMore = typeof total === 'number' && typeof limit === 'number'
+    ? (page + 1) * limit < total
+    : hasMore;
+  const totalPages = typeof total === 'number' && typeof limit === 'number'
+    ? Math.max(1, Math.ceil(total / limit))
+    : null;
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -17,8 +23,10 @@ export default function Pagination({ page, onPage, hasMore }) {
         onClick={() => onPage(page - 1)}>
         &larr; Previous
       </button>
-      <span style={{ fontSize: 13, color: '#666' }}>Page {page + 1}</span>
-      <button style={btnStyle(!hasMore)} disabled={!hasMore}
+      <span style={{ fontSize: 13, color: '#666' }}>
+        {totalPages ? `Page ${page + 1} of ${totalPages}` : `Page ${page + 1}`}
+      </span>
+      <button style={btnStyle(!derivedHasMore)} disabled={!derivedHasMore}
         onClick={() => onPage(page + 1)}>
         Next &rarr;
       </button>
