@@ -259,11 +259,15 @@ class JournalEntryOut(BaseModel):
     created_at: datetime
     created_by: uuid.UUID
     modified_at: Optional[datetime]
+    submitted_at: Optional[datetime]
+    submitted_by: Optional[uuid.UUID]
     approved_at: Optional[datetime]
     approved_by: Optional[uuid.UUID]
     rejected_at: Optional[datetime]
+    rejected_by: Optional[uuid.UUID]
     rejection_reason: Optional[str]
     posted_at: Optional[datetime]
+    posted_by: Optional[uuid.UUID]
     reversed_at: Optional[datetime]
     reversed_by: Optional[uuid.UUID]
     reversal_entry_id: Optional[uuid.UUID]

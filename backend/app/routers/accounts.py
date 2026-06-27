@@ -15,13 +15,14 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_account_read, require_account_write
 from app.database import get_db
 from app.pagination import build_page
-from app.models import Account, AuditLog
+from app.models import Account, AuditLog, JournalEntry
 from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
 
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
@@ -152,6 +153,24 @@ def update_account(
     if body.description is not None:
         acct.description = body.description
     if body.is_active is not None:
+        if body.is_active is False and acct.is_active:
+            blocking = db.query(JournalEntry).filter(
+                JournalEntry.tenant_id == tenant_id,
+                JournalEntry.deleted_at.is_(None),
+                JournalEntry.status.in_(("draft", "pending_approval", "approved")),
+                or_(
+                    JournalEntry.main_account_id == account_id,
+                    JournalEntry.contra_account_id == account_id,
+                ),
+            ).first()
+            if blocking:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Cannot deactivate account: journal entry "
+                        f"{blocking.entry_number} references it and is in '{blocking.status}' status"
+                    ),
+                )
         acct.is_active = body.is_active
     acct.modified_at = datetime.now(timezone.utc)
     acct.modified_by = current.id

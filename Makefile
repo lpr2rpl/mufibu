@@ -1,7 +1,7 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: ascii-check backend-syntax backend-test frontend-test frontend-build db-smoke rls-test auth-flow-test ci
+.PHONY: ascii-check backend-syntax backend-test frontend-test frontend-build db-smoke rls-test auth-flow-test concurrent-refresh-test ci
 
 ascii-check:
 	./scripts/ascii_check.sh
@@ -26,5 +26,8 @@ rls-test:
 
 auth-flow-test:
 	./scripts/auth_flow_test.sh
+
+concurrent-refresh-test:
+	./scripts/concurrent_refresh_test.sh
 
 ci: ascii-check backend-syntax backend-test frontend-test frontend-build

@@ -264,7 +264,7 @@ export default function Journal() {
                           <button style={{ ...S.btn('#6a1b9a'), padding: '3px 9px', fontSize: 12 }}
                             onClick={() => setConfirmPost(e)}>Post</button>
                         )}
-                        {canPostJournalEntry(tenantId) && e.status === 'posted' && (
+                        {canPostJournalEntry(tenantId) && e.status === 'posted' && !e.reversed_at && (
                           <button style={{ ...S.btn('#37474f'), padding: '3px 9px', fontSize: 12 }}
                             onClick={() => setConfirmReverse(e)}>Reverse</button>
                         )}

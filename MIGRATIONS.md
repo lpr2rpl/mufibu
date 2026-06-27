@@ -19,6 +19,16 @@ migration files.
   constraint that could not use a subquery).
 - `database/migrations/006_token_revocation.sql`: idempotent migration adding the
   per-user `tokens_valid_after` token revocation watermark column.
+- `database/migrations/007_active_account_enforcement.sql`: SECURITY DEFINER
+  triggers that reject journal entry INSERT/UPDATE when either account is
+  inactive, and that reject accounts with a cross-tenant `parent_account_id`.
+- `database/migrations/008_approval_notes.sql`: adds the `approval_notes TEXT`
+  column to `journal_entries` for structured approval metadata (separate from
+  the free-text `notes` field).
+- `database/migrations/009_reversal_tracking.sql`: adds `REVERSE` to the
+  `audit_action` enum and three columns to `journal_entries`
+  (`reversed_at`, `reversed_by`, `reversal_entry_id`) so that the original
+  entry records when and by whom it was reversed.
 
 ## Apply Order
 
@@ -31,6 +41,9 @@ psql -v ON_ERROR_STOP=1 -f database/migrations/003_login_throttle.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/004_journal_balance.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/005_ura_scope_trigger.sql
 psql -v ON_ERROR_STOP=1 -f database/migrations/006_token_revocation.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/007_active_account_enforcement.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/008_approval_notes.sql
+psql -v ON_ERROR_STOP=1 -f database/migrations/009_reversal_tracking.sql
 ```
 
 The setup script and the smoke test apply every file in
