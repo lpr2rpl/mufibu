@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
   getJournalEntriesPage, getAccounts, createJournalEntry,
-  approveEntry, rejectEntry, postEntry, submitEntry,
+  approveEntry, rejectEntry, postEntry, submitEntry, reverseEntry,
 } from '../api/client';
 import Badge from '../components/Badge';
 import Spinner from '../components/Spinner';
@@ -61,7 +61,10 @@ export default function Journal() {
   const [showForm, setShowForm] = useState(false);
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approveModal, setApproveModal] = useState(null);
+  const [approveNotes, setApproveNotes] = useState('');
   const [confirmPost, setConfirmPost] = useState(null);
+  const [confirmReverse, setConfirmReverse] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(0);
@@ -128,13 +131,26 @@ export default function Journal() {
     }
   };
 
-  const handleApprove = async (entry) => {
+  const handleApproveConfirm = async () => {
     try {
-      await approveEntry(tenantId, entry.id, {});
+      await approveEntry(tenantId, approveModal.id, { approval_notes: approveNotes || undefined });
       toast.success('Entry approved.');
+      setApproveModal(null);
+      setApproveNotes('');
       setReloadToken((n) => n + 1);
     } catch (e) {
       toast.error(apiError(e, 'Failed to approve'));
+    }
+  };
+
+  const handleReverse = async () => {
+    try {
+      const { data } = await reverseEntry(tenantId, confirmReverse.id);
+      toast.success(`Reversal ${data.reversal_entry_number} created as draft.`);
+      setConfirmReverse(null);
+      setReloadToken((n) => n + 1);
+    } catch (e) {
+      toast.error(apiError(e, 'Failed to create reversal'));
     }
   };
 
@@ -227,7 +243,10 @@ export default function Journal() {
                       <td style={{ ...S.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                         {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
-                      <td style={S.td}><Badge label={e.status} variant={e.status} /></td>
+                      <td style={S.td}
+                        title={e.approval_notes ? `Approval note: ${e.approval_notes}` : undefined}>
+                        <Badge label={e.status} variant={e.status} />
+                      </td>
                       <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
                         {canWriteBookings(tenantId) && e.status === 'draft' && e.requires_approval && (
                           <button style={{ ...S.btn('#455a64'), padding: '3px 9px', fontSize: 12, marginRight: 4 }}
@@ -236,7 +255,7 @@ export default function Journal() {
                         {canApprove(tenantId) && e.status === 'pending_approval' && (
                           <>
                             <button style={{ ...S.btn('#2e7d32'), padding: '3px 9px', fontSize: 12, marginRight: 4 }}
-                              onClick={() => handleApprove(e)}>Approve</button>
+                              onClick={() => { setApproveModal(e); setApproveNotes(''); }}>Approve</button>
                             <button style={{ ...S.btn('#c62828'), padding: '3px 9px', fontSize: 12 }}
                               onClick={() => { setRejectModal(e); setRejectReason(''); }}>Reject</button>
                           </>
@@ -244,6 +263,10 @@ export default function Journal() {
                         {canPostJournalEntry(tenantId) && e.status === 'approved' && (
                           <button style={{ ...S.btn('#6a1b9a'), padding: '3px 9px', fontSize: 12 }}
                             onClick={() => setConfirmPost(e)}>Post</button>
+                        )}
+                        {canPostJournalEntry(tenantId) && e.status === 'posted' && (
+                          <button style={{ ...S.btn('#37474f'), padding: '3px 9px', fontSize: 12 }}
+                            onClick={() => setConfirmReverse(e)}>Reverse</button>
                         )}
                       </td>
                     </tr>
@@ -343,12 +366,36 @@ export default function Journal() {
         </Modal>
       )}
 
+      {approveModal && (
+        <Modal title="Approve Entry" onClose={() => setApproveModal(null)}>
+          <p style={{ marginBottom: 12, fontSize: 14, color: '#555' }}>
+            Approve entry <strong>{approveModal.entry_number}</strong>: {approveModal.description}
+          </p>
+          <label style={S.label}>Approval Notes <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
+          <textarea style={{ ...S.input, height: 72, marginBottom: 16 }}
+            value={approveNotes} onChange={e => setApproveNotes(e.target.value)}
+            placeholder="Add notes about this approval decision..." />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => setApproveModal(null)} style={S.btn('#888')}>Cancel</button>
+            <button onClick={handleApproveConfirm} style={S.btn('#2e7d32')}>Confirm Approval</button>
+          </div>
+        </Modal>
+      )}
+
       {confirmPost && (
         <ConfirmDialog
           message={`Post entry ${confirmPost.entry_number}? This action is final and cannot be undone.`}
           danger
           onConfirm={handlePost}
           onCancel={() => setConfirmPost(null)}
+        />
+      )}
+
+      {confirmReverse && (
+        <ConfirmDialog
+          message={`Create a reversal draft for entry ${confirmReverse.entry_number}? The original entry is unchanged.`}
+          onConfirm={handleReverse}
+          onCancel={() => setConfirmReverse(null)}
         />
       )}
     </div>

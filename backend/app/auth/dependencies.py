@@ -99,11 +99,17 @@ class CurrentUser:
         self.id: uuid.UUID = user.id
         self.username: str = user.username
         self._roles: List[dict] = payload.get("roles", [])
+        self._exp: Optional[int] = payload.get("exp")
 
     @property
     def roles(self) -> List[dict]:
         """Active role claims from the token (used by /auth/me)."""
         return self._roles
+
+    @property
+    def token_exp(self) -> Optional[int]:
+        """Unix timestamp when the access token expires (from JWT exp claim)."""
+        return self._exp
 
     # --- Low-level helpers ------------------------------------------------
 

@@ -152,7 +152,101 @@ Strengths observed:
       blocks, audit visibility, and append-only immutability).  Opt-in like
       `db-smoke`, not part of `make ci`.
 
-## 3. ASCII7 Policy
+### P4 - Traceability and Documentation
+
+- [x] Track all improvement items in this document so the backlog is visible.
+      Previous improvements were implemented but not recorded here until now.
+
+## 3. Second Artifact Review (2026-06-27)
+
+A second full-stack review was conducted covering backend, frontend, database,
+auth, and test layers.  Items below were identified and implemented in a single
+batch.
+
+### Security
+
+- [x] Add Content-Security-Policy response header (migration 1.1).
+      `nginx/mufibu-frontend.conf` now adds a CSP header restricting scripts
+      to same-origin, permitting inline styles (required for React style props),
+      and blocking framing via `frame-ancestors 'none'`.
+
+- [x] API-wide rate limiting (migration 1.2).
+      `nginx/mufibu-frontend.conf` adds a `limit_req_zone` (60 req/min per
+      IP, burst 20) applied to all `/api/` traffic.  Health endpoints are
+      exempted from rate limiting so liveness probes are never throttled.
+      Returns HTTP 429 on excess requests.
+
+- [x] Enforce account `is_active` at the DB level (migration 1.3).
+      `database/migrations/007_active_account_enforcement.sql` adds trigger
+      `trg_je_accounts_active` on `journal_entries`: any INSERT or UPDATE that
+      sets an inactive account as `main_account_id` or `contra_account_id` is
+      rejected.  The trigger skips the check when neither account column
+      changes, so status/approval updates on existing entries are unaffected.
+      Service-layer gaps were also closed: `update_entry` now validates
+      `is_active` when changing accounts, and split-line account checks in
+      `create_entry` now include `is_active`.
+
+- [x] Tighten access token cookie path from `/api/` to `/api/v1/` (fix 1.4).
+      `backend/app/auth/cookies.py` `ACCESS_PATH` changed so the access token
+      is only sent on routes that actually consume it, reducing the window for
+      future `/api/v2/` or similar paths inadvertently receiving it.
+
+### Business Logic Correctness
+
+- [x] Structured approval notes field (fix 2.1).
+      `database/migrations/008_approval_notes.sql` adds `approval_notes TEXT`
+      to `journal_entries`.  `approve_entry` now writes to this column instead
+      of appending a text prefix to `entry.notes`.  The approve action in the
+      UI now opens a modal with an optional approval notes textarea.  The
+      response schema (`JournalEntryOut`) exposes `approval_notes` and the
+      Status column shows it as a hover tooltip.
+
+- [x] Journal entry reversal endpoint (feature 2.2).
+      `POST /tenants/{tenant_id}/journal/{entry_id}/reverse` creates a draft
+      reversal entry with main/contra accounts swapped and debit/credit on
+      split lines swapped.  Requires PowerUser.  The original entry is
+      unchanged; the reversal carries the original entry number in `reference`.
+      A "Reverse" button is shown on posted entries in the Journal UI.
+
+- [x] Parent account tenant boundary validation (fix 2.3).
+      `database/migrations/007_active_account_enforcement.sql` also adds
+      trigger `trg_account_parent_tenant` on `accounts`: any account created
+      (or updated) with a `parent_account_id` referencing a different tenant
+      is rejected.  `create_account` in `routers/accounts.py` adds a
+      service-layer check that returns a clean 400 before the trigger fires.
+
+### Testing Coverage
+
+- [x] `can_reverse` unit tests (test 3.3 / 2.2).
+      `backend/tests/test_journal_workflow.py` now includes `CanReverseTests`
+      covering both the posted-entry pass and all non-posted-state blocks.
+
+- [x] API response schema contract tests (test 3.2).
+      `frontend/src/api/contracts.test.js` now includes a
+      `response shape contracts` suite covering `JournalEntry`, `Account`,
+      `AuthSession` (including `access_expires_at`), and `ReversalResponse`.
+      `contracts.js` documents all key response shapes as JSDoc typedefs.
+      The `journalReverse` path is also covered in the path-shape suite.
+
+### UX Improvements
+
+- [x] Session timeout indicator (feature 4.1).
+      `backend/app/auth/dependencies.py` exposes `token_exp` on `CurrentUser`.
+      `AuthSession` response now includes `access_expires_at` (exact timestamp
+      from `_issue_session`; from JWT `exp` claim on `/auth/me`).
+      `frontend/src/context/AuthContext.jsx` schedules a `setTimeout` 5 minutes
+      before expiry and sets `sessionExpiring=true`.
+      `frontend/src/components/SessionWarning.jsx` renders a fixed-position
+      banner with "Extend" (calls `/auth/refresh`) and "Dismiss" actions.
+      The banner is rendered globally from `App.jsx` inside `AuthProvider`.
+
+- [x] Password complexity enforcement (feature 4.2).
+      `UserCreate.password_strength` validator in `backend/app/schemas.py` now
+      requires min 12 characters, at least one uppercase letter, one digit,
+      and one special character (non-alphanumeric).  The user creation form in
+      `frontend/src/pages/Users.jsx` displays the requirement as hint text.
+
+## 4. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
 This keeps diffs, terminals, and toolchains free of encoding ambiguity.

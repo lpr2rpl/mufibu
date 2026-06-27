@@ -21,6 +21,7 @@ export const API_PATHS = {
     journalApprove: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/approve`,
     journalReject: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/reject`,
     journalPost: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/post`,
+    journalReverse: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/reverse`,
   },
   users: {
     list: '/users',
@@ -66,4 +67,57 @@ export const API_PATHS = {
  * @property {number} skip
  * @property {number} limit
  * @property {T[]} items
+ *
+ * @typedef {Object} JournalEntry
+ * @property {string} id
+ * @property {string} tenant_id
+ * @property {string} entry_number
+ * @property {string} entry_date
+ * @property {string} description
+ * @property {'draft'|'pending_approval'|'approved'|'rejected'|'posted'} status
+ * @property {boolean} requires_approval
+ * @property {string} main_account_id
+ * @property {string} contra_account_id
+ * @property {string} amount
+ * @property {string=} reference
+ * @property {string=} notes
+ * @property {string=} approval_notes
+ * @property {string} created_at
+ * @property {string} created_by
+ * @property {JournalEntryLine[]} lines
+ *
+ * @typedef {Object} JournalEntryLine
+ * @property {string} id
+ * @property {number} line_number
+ * @property {string} account_id
+ * @property {'debit'|'credit'} debit_credit
+ * @property {string} amount
+ * @property {string=} description
+ *
+ * @typedef {Object} Account
+ * @property {string} id
+ * @property {string} tenant_id
+ * @property {string} account_number
+ * @property {string} name
+ * @property {'asset'|'liability'|'equity'|'revenue'|'expense'} account_type
+ * @property {string=} parent_account_id
+ * @property {string=} description
+ * @property {boolean} is_active
+ * @property {string} created_at
+ *
+ * @typedef {Object} AuditLogEntry
+ * @property {string} id
+ * @property {string} occurred_at
+ * @property {string=} user_id
+ * @property {string=} tenant_id
+ * @property {string} action
+ * @property {string=} table_name
+ * @property {string=} record_id
+ * @property {Object=} old_values
+ * @property {Object=} new_values
+ * @property {string=} notes
+ *
+ * @typedef {Object} ReversalResponse
+ * @property {string} reversal_entry_id
+ * @property {string} reversal_entry_number
  */

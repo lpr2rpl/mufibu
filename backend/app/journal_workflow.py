@@ -33,6 +33,17 @@ def lines_balance_error(lines) -> Optional[str]:
     return None
 
 
+def can_reverse(entry_status: str) -> Optional[str]:
+    """Return an error message if the entry cannot be reversed, None if it can.
+
+    Only posted entries are eligible; all other states have incomplete or
+    mutable data that should not be reversed via a new entry.
+    """
+    if entry_status != "posted":
+        return "Only posted entries can be reversed"
+    return None
+
+
 def postable_error(entry_status: str, requires_approval: bool) -> Optional[str]:
     """
     Return an error message if an entry in the given state may NOT be posted,

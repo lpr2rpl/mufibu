@@ -60,6 +60,7 @@ export const login = (username, password) =>
   api.post(API_PATHS.auth.login, { username, password });
 export const logout = () => api.post(API_PATHS.auth.logout);
 export const getMe = () => api.get(API_PATHS.auth.me);
+export const refreshTokens = () => api.post(API_PATHS.auth.refresh);
 
 // Tenants
 export const getTenants = () => api.get(API_PATHS.tenants.list);
@@ -110,6 +111,8 @@ export const rejectEntry = (tenantId, entryId, data) =>
   api.post(API_PATHS.tenants.journalReject(tenantId, entryId), data);
 export const postEntry = (tenantId, entryId) =>
   api.post(API_PATHS.tenants.journalPost(tenantId, entryId));
+export const reverseEntry = (tenantId, entryId) =>
+  api.post(API_PATHS.tenants.journalReverse(tenantId, entryId));
 
 // Audit
 export const getAuditLog = (params) => api.get(API_PATHS.audit.list, { params });

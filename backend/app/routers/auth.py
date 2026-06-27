@@ -31,6 +31,8 @@ from app.schemas import AuthSession, LoginRequest, RefreshRequest
 
 def _issue_session(response: Response, user: User, roles: list) -> AuthSession:
     """Mint fresh tokens, deliver them as cookies, and return the session body."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
     token_data = {"sub": str(user.id), "username": user.username, "roles": roles}
     set_auth_cookies(
         response,
@@ -38,7 +40,8 @@ def _issue_session(response: Response, user: User, roles: list) -> AuthSession:
         create_refresh_token(token_data),
         generate_csrf_token(),
     )
-    return AuthSession(user=user, roles=roles)
+    access_expires_at = now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    return AuthSession(user=user, roles=roles, access_expires_at=access_expires_at)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -185,4 +188,8 @@ def logout(
 
 @router.get("/me", response_model=AuthSession)
 def me(current: CurrentUser = Depends(get_current_user)):
-    return AuthSession(user=current.user, roles=current.roles)
+    exp = current.token_exp
+    access_expires_at = (
+        datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
+    )
+    return AuthSession(user=current.user, roles=current.roles, access_expires_at=access_expires_at)

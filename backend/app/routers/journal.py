@@ -28,11 +28,12 @@ from app.auth.policies import (
 )
 from app.database import get_db
 from app.pagination import build_page
-from app.journal_workflow import lines_balance_error, postable_error
+from app.journal_workflow import can_reverse, lines_balance_error, postable_error
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
     JournalEntryPage, JournalEntryReject, JournalEntryUpdate,
+    ReversalResponse,
 )
 
 router = APIRouter(prefix="/tenants/{tenant_id}/journal", tags=["journal"])
@@ -196,11 +197,12 @@ def create_entry(
                 Account.id == line_data.account_id,
                 Account.tenant_id == tenant_id,
                 Account.deleted_at.is_(None),
+                Account.is_active == True,
             ).first()
             if not acc:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Line account {line_data.account_id} not found",
+                    detail=f"Line account {line_data.account_id} not found or inactive",
                 )
             db.add(JournalEntryLine(
                 journal_entry_id=entry.id,
@@ -268,8 +270,30 @@ def update_entry(
     if body.description is not None:
         entry.description = body.description
     if body.main_account_id is not None:
+        acc = db.query(Account).filter(
+            Account.id == body.main_account_id,
+            Account.tenant_id == tenant_id,
+            Account.deleted_at.is_(None),
+            Account.is_active == True,
+        ).first()
+        if not acc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Account {body.main_account_id} not found or inactive in this tenant",
+            )
         entry.main_account_id = body.main_account_id
     if body.contra_account_id is not None:
+        acc = db.query(Account).filter(
+            Account.id == body.contra_account_id,
+            Account.tenant_id == tenant_id,
+            Account.deleted_at.is_(None),
+            Account.is_active == True,
+        ).first()
+        if not acc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Account {body.contra_account_id} not found or inactive in this tenant",
+            )
         entry.contra_account_id = body.contra_account_id
     if body.amount is not None:
         entry.amount = body.amount
@@ -346,8 +370,8 @@ def approve_entry(
     entry.status = "approved"
     entry.approved_at = now
     entry.approved_by = current.id
-    if body.notes:
-        entry.notes = (entry.notes or "") + f"\nApproval note: {body.notes}"
+    if body.approval_notes:
+        entry.approval_notes = body.approval_notes
 
     db.add(AuditLog(
         user_id=current.id, tenant_id=tenant_id, action="APPROVE",
@@ -420,6 +444,77 @@ def post_entry(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.post("/{entry_id}/reverse", response_model=ReversalResponse, status_code=status.HTTP_201_CREATED)
+def reverse_entry(
+    tenant_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a draft reversal for a posted entry.
+
+    The reversal swaps main and contra accounts (and swaps debit/credit on any
+    split lines), so posting it cancels the effect of the original.  The
+    original entry is unchanged; the reversal carries a reference back to it.
+    Requires PowerUser (same permission as posting).
+    """
+    require_journal_power_user(current, tenant_id)
+    entry = _get_entry(db, tenant_id, entry_id)
+
+    err = can_reverse(entry.status)
+    if err:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=err)
+
+    reversal = JournalEntry(
+        tenant_id=tenant_id,
+        entry_number=_next_entry_number(db, tenant_id),
+        entry_date=entry.entry_date,
+        description=f"Reversal of {entry.entry_number}",
+        status="draft",
+        requires_approval=False,
+        main_account_id=entry.contra_account_id,
+        contra_account_id=entry.main_account_id,
+        amount=entry.amount,
+        reference=entry.entry_number,
+        created_by=current.id,
+    )
+    db.add(reversal)
+    db.flush()
+
+    active_lines = [ln for ln in entry.lines if ln.deleted_at is None]
+    for ln in active_lines:
+        swapped_dc = "credit" if ln.debit_credit == "debit" else "debit"
+        db.add(JournalEntryLine(
+            journal_entry_id=reversal.id,
+            line_number=ln.line_number,
+            account_id=ln.account_id,
+            debit_credit=swapped_dc,
+            amount=ln.amount,
+            description=ln.description,
+        ))
+
+    db.add(AuditLog(
+        user_id=current.id,
+        tenant_id=tenant_id,
+        action="INSERT",
+        table_name="journal_entries",
+        record_id=reversal.id,
+        new_values={
+            "entry_number": reversal.entry_number,
+            "reversal_of": entry.entry_number,
+            "amount": str(reversal.amount),
+            "status": reversal.status,
+        },
+    ))
+    db.commit()
+    db.refresh(reversal)
+    return ReversalResponse(
+        reversal_entry_id=reversal.id,
+        reversal_entry_number=reversal.entry_number,
+    )
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

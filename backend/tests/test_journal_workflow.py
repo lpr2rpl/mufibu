@@ -9,13 +9,25 @@ import unittest
 from collections import namedtuple
 from decimal import Decimal
 
-from app.journal_workflow import lines_balance_error, postable_error
+from app.journal_workflow import can_reverse, lines_balance_error, postable_error
 
 Line = namedtuple("Line", ["debit_credit", "amount"])
 
 
 def _d(value):
     return Decimal(str(value))
+
+
+class CanReverseTests(unittest.TestCase):
+    def test_posted_entry_can_be_reversed(self):
+        self.assertIsNone(can_reverse("posted"))
+
+    def test_non_posted_states_cannot_be_reversed(self):
+        for state in ("draft", "pending_approval", "approved", "rejected"):
+            self.assertIsNotNone(
+                can_reverse(state),
+                f"{state} should not be reversible",
+            )
 
 
 class PostableRuleTests(unittest.TestCase):

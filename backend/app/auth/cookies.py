@@ -23,7 +23,7 @@ CSRF_COOKIE = "csrf_token"
 # Scope the access cookie to the whole API and the refresh cookie to the auth
 # routes only, so the long-lived refresh token is sent on as few requests as
 # possible.  The CSRF cookie must be readable everywhere the SPA runs.
-ACCESS_PATH = "/api/"
+ACCESS_PATH = "/api/v1/"
 REFRESH_PATH = "/api/v1/auth"
 CSRF_PATH = "/"
 

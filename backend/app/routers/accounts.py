@@ -80,6 +80,18 @@ def create_account(
     ).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Account number already exists")
 
+    if body.parent_account_id is not None:
+        parent = db.query(Account).filter(
+            Account.id == body.parent_account_id,
+            Account.tenant_id == tenant_id,
+            Account.deleted_at.is_(None),
+        ).first()
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="parent_account_id must belong to the same tenant",
+            )
+
     acct = Account(
         tenant_id=tenant_id,
         account_number=body.account_number,

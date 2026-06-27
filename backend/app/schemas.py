@@ -57,8 +57,17 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
+        errors = []
+        if len(v) < 12:
+            errors.append("at least 12 characters")
+        if not any(c.isupper() for c in v):
+            errors.append("at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            errors.append("at least one digit")
+        if not any(not c.isalnum() for c in v):
+            errors.append("at least one special character")
+        if errors:
+            raise ValueError("Password must contain: " + ", ".join(errors))
         return v
 
 class UserOut(BaseModel):
@@ -75,6 +84,7 @@ class AuthSession(BaseModel):
     # cookies, never in the body, so JavaScript cannot read them.
     user: UserOut
     roles: List[dict]
+    access_expires_at: Optional[datetime] = None
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -227,7 +237,7 @@ class JournalEntryUpdate(BaseModel):
     notes: Optional[str] = None
 
 class JournalEntryApprove(BaseModel):
-    notes: Optional[str] = None
+    approval_notes: Optional[str] = None
 
 class JournalEntryReject(BaseModel):
     rejection_reason: str
@@ -245,6 +255,7 @@ class JournalEntryOut(BaseModel):
     amount: Decimal
     reference: Optional[str]
     notes: Optional[str]
+    approval_notes: Optional[str]
     created_at: datetime
     created_by: uuid.UUID
     modified_at: Optional[datetime]
@@ -256,6 +267,14 @@ class JournalEntryOut(BaseModel):
     deleted_at: Optional[datetime]
     lines: List[JournalEntryLineOut] = []
     model_config = {"from_attributes": True}
+
+# ------------------------------------------------------------------
+# Journal Entry Reversal
+# ------------------------------------------------------------------
+
+class ReversalResponse(BaseModel):
+    reversal_entry_id: uuid.UUID
+    reversal_entry_number: str
 
 # ------------------------------------------------------------------
 # Audit Log

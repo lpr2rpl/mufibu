@@ -244,7 +244,10 @@ export default function Users() {
             <div style={{ marginBottom: 16 }}>
               <label style={S.label}>Password</label>
               <input style={S.input} type="password" value={userForm.password}
-                onChange={e => setUserForm(u => ({ ...u, password: e.target.value }))} required minLength={8} />
+                onChange={e => setUserForm(u => ({ ...u, password: e.target.value }))} required minLength={12} />
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>
+                Min 12 characters, at least one uppercase letter, one digit, and one special character.
+              </p>
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setShowUserForm(false)} style={S.btn('#888')}>Cancel</button>

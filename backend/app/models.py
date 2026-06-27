@@ -216,6 +216,9 @@ class JournalEntry(Base):
     posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     posted_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
+    # Structured approval metadata; separate from entry.notes (see migration 008).
+    approval_notes: Mapped[Optional[str]] = mapped_column(Text)
+
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     deleted_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
