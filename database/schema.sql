@@ -24,7 +24,7 @@ CREATE TYPE account_type    AS ENUM ('asset', 'liability', 'equity', 'revenue', 
 CREATE TYPE audit_action    AS ENUM (
     'INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT',
     'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE',
-    'TENANT_CREATE', 'PHASE_EXTEND'
+    'TENANT_CREATE', 'PHASE_EXTEND', 'REVERSE'
 );
 
 -- ---------------------------------------------------------------------------

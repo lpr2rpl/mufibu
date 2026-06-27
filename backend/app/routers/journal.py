@@ -106,6 +106,7 @@ def _entry_list_query(
             JournalEntry.description.ilike(pattern),
             JournalEntry.reference.ilike(pattern),
             JournalEntry.notes.ilike(pattern),
+            JournalEntry.approval_notes.ilike(pattern),
         ))
     return q
 
@@ -464,7 +465,7 @@ def reverse_entry(
     require_journal_power_user(current, tenant_id)
     entry = _get_entry(db, tenant_id, entry_id)
 
-    err = can_reverse(entry.status)
+    err = can_reverse(entry.status, entry.reversed_at)
     if err:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=err)
 
@@ -496,17 +497,22 @@ def reverse_entry(
             description=ln.description,
         ))
 
+    now = datetime.now(tz=timezone.utc)
+    entry.reversed_at = now
+    entry.reversed_by = current.id
+    entry.reversal_entry_id = reversal.id
+
     db.add(AuditLog(
         user_id=current.id,
         tenant_id=tenant_id,
-        action="INSERT",
+        action="REVERSE",
         table_name="journal_entries",
-        record_id=reversal.id,
+        record_id=entry.id,
         new_values={
-            "entry_number": reversal.entry_number,
-            "reversal_of": entry.entry_number,
+            "reversal_entry_number": reversal.entry_number,
+            "reversal_entry_id": str(reversal.id),
+            "original_entry_number": entry.entry_number,
             "amount": str(reversal.amount),
-            "status": reversal.status,
         },
     ))
     db.commit()

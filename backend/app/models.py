@@ -219,6 +219,11 @@ class JournalEntry(Base):
     # Structured approval metadata; separate from entry.notes (see migration 008).
     approval_notes: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Reversal tracking (see migration 009).
+    reversed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    reversed_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    reversal_entry_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_entries.id"))
+
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     deleted_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
@@ -279,7 +284,7 @@ class AuditLog(Base):
         SAEnum(
             "INSERT", "UPDATE", "SOFT_DELETE", "LOGIN", "LOGOUT",
             "APPROVE", "REJECT", "ROLE_ASSIGN", "ROLE_REVOKE",
-            "TENANT_CREATE", "PHASE_EXTEND",
+            "TENANT_CREATE", "PHASE_EXTEND", "REVERSE",
             name="audit_action"
         ),
         nullable=False

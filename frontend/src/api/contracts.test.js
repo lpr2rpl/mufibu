@@ -42,11 +42,13 @@ describe('response shape contracts', () => {
       requires_approval: false, main_account_id: 'a1', contra_account_id: 'a2',
       amount: '100.00', reference: null, notes: null, approval_notes: null,
       created_at: '2026-01-01T00:00:00Z', created_by: 'u1', lines: [],
+      reversed_at: null, reversed_by: null, reversal_entry_id: null,
     };
     assertHasFields(entry, [
       'id', 'tenant_id', 'entry_number', 'entry_date', 'description', 'status',
       'requires_approval', 'main_account_id', 'contra_account_id', 'amount',
       'approval_notes', 'created_at', 'created_by', 'lines',
+      'reversed_at', 'reversed_by', 'reversal_entry_id',
     ]);
   });
 

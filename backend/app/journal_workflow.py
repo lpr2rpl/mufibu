@@ -33,14 +33,17 @@ def lines_balance_error(lines) -> Optional[str]:
     return None
 
 
-def can_reverse(entry_status: str) -> Optional[str]:
+def can_reverse(entry_status: str, reversed_at=None) -> Optional[str]:
     """Return an error message if the entry cannot be reversed, None if it can.
 
     Only posted entries are eligible; all other states have incomplete or
-    mutable data that should not be reversed via a new entry.
+    mutable data that should not be reversed via a new entry.  An entry that
+    has already been reversed (reversed_at is set) cannot be reversed again.
     """
     if entry_status != "posted":
         return "Only posted entries can be reversed"
+    if reversed_at is not None:
+        return "Entry has already been reversed"
     return None
 
 

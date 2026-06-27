@@ -29,6 +29,14 @@ class CanReverseTests(unittest.TestCase):
                 f"{state} should not be reversible",
             )
 
+    def test_already_reversed_entry_cannot_be_reversed_again(self):
+        from datetime import datetime, timezone
+        stamp = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self.assertIsNotNone(can_reverse("posted", reversed_at=stamp))
+
+    def test_not_yet_reversed_posted_entry_is_reversible(self):
+        self.assertIsNone(can_reverse("posted", reversed_at=None))
+
 
 class PostableRuleTests(unittest.TestCase):
     def test_approval_required_entry_must_be_approved(self):

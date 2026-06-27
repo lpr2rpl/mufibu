@@ -264,6 +264,9 @@ class JournalEntryOut(BaseModel):
     rejected_at: Optional[datetime]
     rejection_reason: Optional[str]
     posted_at: Optional[datetime]
+    reversed_at: Optional[datetime]
+    reversed_by: Optional[uuid.UUID]
+    reversal_entry_id: Optional[uuid.UUID]
     deleted_at: Optional[datetime]
     lines: List[JournalEntryLineOut] = []
     model_config = {"from_attributes": True}
