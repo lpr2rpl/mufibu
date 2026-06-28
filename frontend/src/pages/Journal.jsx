@@ -67,13 +67,15 @@ export default function Journal() {
   const [confirmReverse, setConfirmReverse] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(makeEmptyForm);
 
   const search = useDebouncedValue(searchInput, 400);
-  const queryKey = `${filterStatus}::${search}`;
+  const queryKey = `${filterStatus}::${search}::${fromDate}::${toDate}`;
   const lastQueryRef = useRef(queryKey);
 
   useEffect(() => {
@@ -94,6 +96,8 @@ export default function Journal() {
       const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (filterStatus) params.status = filterStatus;
       if (search.trim()) params.search = search.trim();
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
       const { data } = await getJournalEntriesPage(tenantId, params);
       setEntries(data.items || []);
       setTotal(data.total || 0);
@@ -101,7 +105,7 @@ export default function Journal() {
       toast.error(apiError(e, 'Failed to load entries'));
     }
     setLoading(false);
-  }, [tenantId, filterStatus, search, page, queryKey, reloadToken]);
+  }, [tenantId, filterStatus, search, fromDate, toDate, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -200,6 +204,12 @@ export default function Journal() {
             setSearchInput(e.target.value);
           }}
         />
+        <input type="date" style={{ ...S.searchInput, width: 'auto' }}
+          value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(0); }}
+          title="From date" />
+        <input type="date" style={{ ...S.searchInput, width: 'auto' }}
+          value={toDate} onChange={e => { setToDate(e.target.value); setPage(0); }}
+          title="To date" />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STATUS_TABS.map(t => (
             <button key={t.value} style={S.tab(filterStatus === t.value)}

@@ -410,3 +410,39 @@ Rendered UI glyphs are preserved without non-ASCII source bytes by using:
 
 The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 `make ci`) fails the build if any tracked file contains a non-ASCII byte.
+
+## Round 8 (2026-06-28)
+
+### Auth
+
+- [x] Self-service password change endpoint added.
+      `POST /auth/change-password` verifies the current password, enforces the
+      same 12-character complexity rule as registration, hashes the new password,
+      bumps `tokens_valid_after` to invalidate all existing sessions, and clears
+      auth cookies.  A `ChangePasswordRequest` Pydantic schema was added.
+
+- [x] Frontend "Change My Password" modal wired up.
+      Users tab in the Users page gains a "Change My Password" button that opens
+      a two-field modal (current + new password); success toasts and redirects
+      the user to log in again.
+
+### Authorization
+
+- [x] Role assignment past-validity guard added.
+      `assign_role` now rejects a `valid_until` value that is in the past (HTTP
+      422) so expired assignments can never be created accidentally.
+
+- [x] Extend-assignment must-be-later guard added.
+      `extend_assignment` requires the new `valid_until` to be both a future date
+      and strictly later than the current `valid_until`, preventing accidental
+      shortening of an active assignment.
+
+- [x] Pure `role_rules.py` module extracted with 11 unit tests.
+      `assignment_valid_until_error` and `extension_valid_until_error` are pure
+      functions testable without a database.
+
+### UX
+
+- [x] Accounts.jsx edit modal gains a Parent Account selector.
+      Active sibling accounts in the same tenant are listed; choosing one sets
+      `parent_account_id` on PATCH; the "None" option clears it.

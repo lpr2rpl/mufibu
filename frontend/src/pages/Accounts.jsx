@@ -110,7 +110,7 @@ export default function Accounts() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Number', 'Name', 'Type', 'Description', 'Status', 'Last Modified', canWrite && 'Actions'].filter(Boolean).map(h => (
+                  {['Number', 'Name', 'Type', 'Parent', 'Description', 'Status', 'Last Modified', canWrite && 'Actions'].filter(Boolean).map(h => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
                 </tr>
@@ -118,6 +118,9 @@ export default function Accounts() {
               <tbody>
                 {accounts.map(a => {
                   const [bg, color] = TYPE_COLORS[a.account_type] || ['#f5f5f5', '#555'];
+                  const parentNum = a.parent_account_id
+                    ? (accounts.find(p => p.id === a.parent_account_id) || {}).account_number || '\u2014'
+                    : '\u2014';
                   return (
                     <tr key={a.id} style={{ opacity: a.is_active ? 1 : 0.5 }}>
                       <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 600 }}>{a.account_number}</td>
@@ -125,6 +128,7 @@ export default function Accounts() {
                       <td style={S.td}>
                         <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{a.account_type}</span>
                       </td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12, color: '#888' }}>{parentNum}</td>
                       <td style={{ ...S.td, color: '#888' }}>{a.description || '-'}</td>
                       <td style={S.td}>
                         <Badge label={a.is_active ? 'Active' : 'Inactive'} variant={a.is_active ? 'active' : 'inactive'} />

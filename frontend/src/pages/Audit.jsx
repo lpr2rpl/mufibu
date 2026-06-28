@@ -16,11 +16,11 @@ const ACTION_COLORS = {
   INSERT: '#e8f5e9', UPDATE: '#e3f2fd', SOFT_DELETE: '#ffebee',
   LOGIN: '#f3e5f5', LOGOUT: '#fff3e0', APPROVE: '#e8f5e9',
   REJECT: '#ffebee', ROLE_ASSIGN: '#e8eaf6', ROLE_REVOKE: '#fff8e1',
-  TENANT_CREATE: '#e8f5e9', PHASE_EXTEND: '#e3f2fd',
+  TENANT_CREATE: '#e8f5e9', PHASE_EXTEND: '#e3f2fd', REVERSE: '#fce4ec',
 };
 
 const LIMIT = 50;
-const ACTIONS = ['INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE', 'TENANT_CREATE', 'PHASE_EXTEND'];
+const ACTIONS = ['INSERT', 'UPDATE', 'SOFT_DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'ROLE_ASSIGN', 'ROLE_REVOKE', 'TENANT_CREATE', 'PHASE_EXTEND', 'REVERSE'];
 const TABLES  = ['users', 'tenants', 'user_role_assignments', 'accounts', 'journal_entries'];
 
 export default function Audit() {
