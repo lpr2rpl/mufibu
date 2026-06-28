@@ -23,6 +23,7 @@ from app.auth.permissions import POWER_ADMIN_ONLY_ROLES
 from app.database import get_db
 from app.pagination import build_page
 from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
+from app.role_rules import assignment_valid_until_error, extension_valid_until_error
 from app.schemas import (
     RoleAssignmentCreate, RoleAssignmentExtend, RoleAssignmentOut,
     RoleAssignmentPage, RoleAssignmentRevoke, RoleOut, RolePage,
@@ -206,6 +207,10 @@ def assign_role(
         )
 
     now = datetime.now(timezone.utc)
+    err = assignment_valid_until_error(body.valid_until, now)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
+
     ura = UserRoleAssignment(
         user_id=body.user_id,
         role_id=role.id,
@@ -278,12 +283,12 @@ def extend_assignment(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Insufficient permissions to extend this assignment")
 
-    current_until = ura.valid_until or datetime.now(timezone.utc)
-    if body.valid_until <= current_until:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New valid_until must be later than the current valid_until",
-        )
+    now = datetime.now(timezone.utc)
+    err = extension_valid_until_error(body.valid_until, now, current_valid_until=ura.valid_until)
+    if err:
+        code = (status.HTTP_422_UNPROCESSABLE_ENTITY if "future" in err
+                else status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=code, detail=err)
 
     ura.previous_valid_until = ura.valid_until
     ura.valid_until = body.valid_until

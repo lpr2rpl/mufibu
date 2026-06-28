@@ -23,7 +23,7 @@ const TYPE_COLORS = {
   expense:   ['#ffebee', '#c62828'],
 };
 
-const EMPTY_FORM = { account_number: '', name: '', account_type: 'asset', description: '' };
+const EMPTY_FORM = { account_number: '', name: '', account_type: 'asset', description: '', parent_account_id: null };
 
 export default function Accounts() {
   const { tenantId } = useParams();
@@ -58,7 +58,11 @@ export default function Accounts() {
     e.preventDefault();
     try {
       if (editAcct) {
-        await updateAccount(tenantId, editAcct.id, { name: form.name, description: form.description });
+        await updateAccount(tenantId, editAcct.id, {
+          name: form.name,
+          description: form.description,
+          parent_account_id: form.parent_account_id || null,
+        });
         toast.success('Account updated.');
       } else {
         await createAccount(tenantId, form);
@@ -76,7 +80,13 @@ export default function Accounts() {
 
   const openEdit = (acct) => {
     setEditAcct(acct);
-    setForm({ account_number: acct.account_number, name: acct.name, account_type: acct.account_type, description: acct.description || '' });
+    setForm({
+      account_number: acct.account_number,
+      name: acct.name,
+      account_type: acct.account_type,
+      description: acct.description || '',
+      parent_account_id: acct.parent_account_id || null,
+    });
     setShowForm(true);
   };
 
@@ -156,6 +166,18 @@ export default function Accounts() {
                 <select style={S.input} value={form.account_type}
                   onChange={e => setForm(f => ({ ...f, account_type: e.target.value }))}>
                   {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            )}
+            {editAcct && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Parent Account</label>
+                <select style={S.input} value={form.parent_account_id || ''}
+                  onChange={e => setForm(f => ({ ...f, parent_account_id: e.target.value || null }))}>
+                  <option value="">None</option>
+                  {accounts
+                    .filter(a => a.id !== editAcct.id && a.is_active)
+                    .map(a => <option key={a.id} value={a.id}>{a.account_number} &mdash; {a.name}</option>)}
                 </select>
               </div>
             )}

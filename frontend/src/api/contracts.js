@@ -6,6 +6,7 @@ export const API_PATHS = {
     logout: '/auth/logout',
     me: '/auth/me',
     refresh: '/auth/refresh',
+    changePassword: '/auth/change-password',
   },
   tenants: {
     list: '/tenants',

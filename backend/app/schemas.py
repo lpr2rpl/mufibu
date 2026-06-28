@@ -91,6 +91,26 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_strength(cls, v: str) -> str:
+        errors = []
+        if len(v) < 12:
+            errors.append("at least 12 characters")
+        if not any(c.isupper() for c in v):
+            errors.append("at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            errors.append("at least one digit")
+        if not any(not c.isalnum() for c in v):
+            errors.append("at least one special character")
+        if errors:
+            raise ValueError("Password must contain: " + ", ".join(errors))
+        return v
+
 # ------------------------------------------------------------------
 # Role
 # ------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants } from '../api/client';
+import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -29,6 +29,9 @@ export default function Users() {
   const toast = useToast();
   const [tab, setTab] = useState('users');
   const [confirmRevoke, setConfirmRevoke] = useState(null);
+  const [showCPModal, setShowCPModal] = useState(false);
+  const [cpForm, setCpForm] = useState({ current_password: '', new_password: '' });
+  const [cpError, setCpError] = useState('');
   const [users, setUsers] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [allRoles, setAllRoles] = useState([]);
@@ -116,6 +119,19 @@ export default function Users() {
     }
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setCpError('');
+    try {
+      await changePassword(cpForm);
+      toast.success('Password changed. Please log in again.');
+      setShowCPModal(false);
+      setTimeout(() => { window.location.href = '/login'; }, 1500);
+    } catch (err) {
+      setCpError(apiError(err, 'Failed to change password'));
+    }
+  };
+
   const handleExtend = async () => {
     try {
       await extendAssignment(extendModal.id, { valid_until: newValidUntil });
@@ -151,7 +167,10 @@ export default function Users() {
       <div style={{ ...S.card, borderRadius: '0 8px 8px 8px' }}>
         {tab === 'users' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 }}>
+              <button style={S.btn('#455a64')} onClick={() => { setShowCPModal(true); setCpForm({ current_password: '', new_password: '' }); setCpError(''); }}>
+                Change My Password
+              </button>
               {isPowerAdmin() && <button style={S.btn()} onClick={() => setShowUserForm(true)}>+ New User</button>}
             </div>
             {loading ? loadingRow : users.length === 0 ? (
@@ -322,6 +341,31 @@ export default function Users() {
           onConfirm={handleRevoke}
           onCancel={() => setConfirmRevoke(null)}
         />
+      )}
+
+      {showCPModal && (
+        <Modal title="Change My Password" onClose={() => setShowCPModal(false)}>
+          <form onSubmit={handleChangePassword}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={S.label}>Current Password</label>
+              <input style={S.input} type="password" value={cpForm.current_password}
+                onChange={e => setCpForm(f => ({ ...f, current_password: e.target.value }))} required />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={S.label}>New Password</label>
+              <input style={S.input} type="password" value={cpForm.new_password}
+                onChange={e => setCpForm(f => ({ ...f, new_password: e.target.value }))} required minLength={12} />
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>
+                Min 12 characters, at least one uppercase letter, one digit, and one special character.
+              </p>
+            </div>
+            {cpError && <p style={{ color: '#c62828', fontSize: 13, marginBottom: 12 }}>{cpError}</p>}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowCPModal(false)} style={S.btn('#888')}>Cancel</button>
+              <button type="submit" style={S.btn()}>Change Password</button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

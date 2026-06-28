@@ -26,7 +26,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import AuditLog, User
 from app.rls import BYPASS_CONTEXT, build_rls_context, set_rls_context
-from app.schemas import AuthSession, LoginRequest, RefreshRequest
+from app.schemas import AuthSession, ChangePasswordRequest, LoginRequest, RefreshRequest
 
 
 def _issue_session(response: Response, user: User, roles: list) -> AuthSession:
@@ -184,6 +184,23 @@ def logout(
     db.commit()
     clear_auth_cookies(response)
     return {"detail": "Logged out"}
+
+
+@router.post("/change-password")
+def change_password(
+    body: ChangePasswordRequest,
+    response: Response,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not pwd_context.verify(body.current_password, current.user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+    current.user.password_hash = pwd_context.hash(body.new_password)
+    current.user.tokens_valid_after = datetime.now(timezone.utc)
+    _audit(db, current.user, "UPDATE", notes="password changed")
+    db.commit()
+    clear_auth_cookies(response)
+    return {"detail": "Password changed. Please log in again."}
 
 
 @router.get("/me", response_model=AuthSession)

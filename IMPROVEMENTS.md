@@ -371,7 +371,32 @@ batch.
 - [x] `IMPROVEMENTS.md` Round 5 section added and ASCII7 Policy renumbered
       from section 5 to section 6 to preserve document ordering.
 
-## 7. ASCII7 Policy
+## 7. Round 7 Review (2026-06-27)
+
+### Correctness
+
+- [x] Soft-delete cascade to journal entry lines.
+      `soft_delete_entry` in `backend/app/routers/journal.py` now stamps
+      `deleted_at` and `deleted_by` on all active lines when the parent entry is
+      soft-deleted, keeping the lines table consistent with the entry lifecycle.
+
+- [x] Duplicate active role assignment guard.
+      `assign_role` returns HTTP 409 when the same user already has an active
+      assignment for the same role in the same tenant, preventing ghost duplicates
+      from accumulating in the `user_role_assignments` table.
+
+### UX
+
+- [x] Accounts.jsx gains a "Last Modified" column.
+      The accounts table now renders `modified_at` (formatted as a locale date)
+      or an em-dash for accounts that have never been edited.
+
+### Documentation
+
+- [x] `IMPROVEMENTS.md` Round 6 section added and ASCII7 Policy renumbered to
+      section 7 to preserve document ordering.
+
+## 8. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
 This keeps diffs, terminals, and toolchains free of encoding ambiguity.
