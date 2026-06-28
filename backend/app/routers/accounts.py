@@ -90,8 +90,11 @@ def create_account(
     db: Session = Depends(get_db),
 ):
     require_account_write(current, tenant_id)
-    if not db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first():
+    _tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first()
+    if not _tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    if not _tenant.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is inactive")
     if db.query(Account).filter(
         Account.tenant_id == tenant_id,
         Account.account_number == body.account_number,

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, getJournalEntriesPage, getAccountsPage } from '../api/client';
+import { getTenants, getTenantSummary } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
 import { getTenantIds, truncateId } from '../utils/roles';
@@ -37,9 +37,7 @@ export default function Dashboard() {
   const { user, roles, isPowerAdmin, isAuditor } = useAuth();
   const toast = useToast();
   const [tenants, setTenants] = useState([]);
-  const [recentByTenant, setRecentByTenant] = useState({});
-  const [statusCountsByTenant, setStatusCountsByTenant] = useState({});
-  const [accountCountByTenant, setAccountCountByTenant] = useState({});
+  const [summaryByTenant, setSummaryByTenant] = useState({});
   const [loading, setLoading] = useState(true);
 
   const tenantIds = getTenantIds(roles);
@@ -59,47 +57,14 @@ export default function Dashboard() {
       promises.push(
         Promise.all(
           tenantIds.map(tid =>
-            getJournalEntriesPage(tid, { limit: 5, skip: 0 })
-              .then(({ data }) => [tid, data.items || []])
-              .catch(() => [tid, []])
+            getTenantSummary(tid)
+              .then(({ data }) => [tid, data])
+              .catch(() => [tid, null])
           )
         ).then(results => {
           const map = {};
-          results.forEach(([tid, items]) => { map[tid] = items; });
-          setRecentByTenant(map);
-        })
-      );
-
-      const STATUSES = ['draft', 'pending_approval', 'approved', 'posted', 'rejected'];
-      promises.push(
-        Promise.all(
-          tenantIds.map(tid =>
-            Promise.all(
-              STATUSES.map(s =>
-                getJournalEntriesPage(tid, { limit: 1, skip: 0, status: s })
-                  .then(({ data }) => [s, data.total || 0])
-                  .catch(() => [s, 0])
-              )
-            ).then(pairs => [tid, Object.fromEntries(pairs)])
-          )
-        ).then(results => {
-          const map = {};
-          results.forEach(([tid, counts]) => { map[tid] = counts; });
-          setStatusCountsByTenant(map);
-        })
-      );
-
-      promises.push(
-        Promise.all(
-          tenantIds.map(tid =>
-            getAccountsPage(tid, { limit: 1, skip: 0 })
-              .then(({ data }) => [tid, data.total || 0])
-              .catch(() => [tid, 0])
-          )
-        ).then(results => {
-          const map = {};
-          results.forEach(([tid, count]) => { map[tid] = count; });
-          setAccountCountByTenant(map);
+          results.forEach(([tid, summary]) => { map[tid] = summary; });
+          setSummaryByTenant(map);
         })
       );
 
@@ -109,7 +74,9 @@ export default function Dashboard() {
     load();
   }, []);
 
-  const totalRecent = Object.values(recentByTenant).reduce((s, arr) => s + arr.length, 0);
+  const totalEntries = Object.values(summaryByTenant).reduce(
+    (s, sum) => s + (sum ? Object.values(sum.entries_by_status).reduce((a, b) => a + b, 0) : 0), 0
+  );
 
   if (loading) {
     return (
@@ -144,16 +111,15 @@ export default function Dashboard() {
           <StatCard label="My Tenants" value={tenantIds.length} color="#f57c00" />
         )}
         {hasTenantAccess && (
-          <StatCard label="Recent Entries" value={totalRecent} color="#6a1b9a" sub="Last 5 per tenant" />
+          <StatCard label="Total Entries" value={totalEntries} color="#6a1b9a" sub="All statuses" />
         )}
       </div>
 
       {hasTenantAccess && tenantIds.map(tid => {
-        const counts = statusCountsByTenant[tid];
-        const accCount = accountCountByTenant[tid];
+        const summary = summaryByTenant[tid];
         const t = tenants.find(x => x.id === tid);
         const tName = t ? t.name : truncateId(tid);
-        if (!counts) return null;
+        if (!summary) return null;
         return (
           <div key={`summary-${tid}`} style={S.card}>
             <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#333' }}>
@@ -162,7 +128,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 14 }}>
               <div>
                 <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>Accounts</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a237e' }}>{accCount ?? '\u2014'}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a237e' }}>{summary.total_accounts}</div>
               </div>
               {[
                 ['Draft', 'draft', '#757575'],
@@ -173,7 +139,7 @@ export default function Dashboard() {
               ].map(([label, key, color]) => (
                 <div key={key}>
                   <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color }}>{counts[key] ?? 0}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color }}>{summary.entries_by_status[key] ?? 0}</div>
                 </div>
               ))}
             </div>
@@ -203,46 +169,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {tenantIds.map(tid => {
-        const entries = recentByTenant[tid] || [];
-        if (!entries.length) return null;
-        const t = tenants.find(x => x.id === tid);
-        const tName = t ? t.name : truncateId(tid);
-        return (
-          <div key={tid} style={S.card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 15, color: '#333' }}>Recent Entries &mdash; {tName}</h3>
-              <Link to={`/journal/${tid}`} style={{ fontSize: 13, color: '#1a237e', textDecoration: 'none' }}>
-                View all &rarr;
-              </Link>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['#', 'Date', 'Description', 'Amount', 'Status'].map(h => (
-                    <th key={h} style={S.th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map(e => (
-                  <tr key={e.id}>
-                    <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.entry_number}</td>
-                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{e.entry_date}</td>
-                    <td style={{ ...S.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {e.description}
-                    </td>
-                    <td style={{ ...S.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td style={S.td}><Badge label={e.status} variant={e.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      })}
 
       {(isPowerAdmin() || isAuditor()) && tenants.length > 0 && (
         <div style={S.card}>

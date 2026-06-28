@@ -9,11 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
-from app.auth.policies import require_power_admin
+from app.auth.policies import require_power_admin, require_journal_read
 from app.database import get_db
 from app.pagination import build_page
-from app.models import AuditLog, Role, Tenant, User, UserRoleAssignment
-from app.schemas import TenantCreate, TenantOut, TenantPage
+from app.models import Account, AuditLog, JournalEntry, Role, Tenant, User, UserRoleAssignment
+from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -95,6 +95,29 @@ def get_tenant(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return tenant
+
+
+@router.get("/{tenant_id}/summary", response_model=TenantSummary)
+def get_tenant_summary(
+    tenant_id: uuid.UUID,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_journal_read(current, tenant_id)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    total_accounts = db.query(Account).filter(
+        Account.tenant_id == tenant_id, Account.deleted_at.is_(None)
+    ).count()
+    entries_by_status = {}
+    for s in ("draft", "pending_approval", "approved", "rejected", "posted"):
+        entries_by_status[s] = db.query(JournalEntry).filter(
+            JournalEntry.tenant_id == tenant_id,
+            JournalEntry.status == s,
+            JournalEntry.deleted_at.is_(None),
+        ).count()
+    return TenantSummary(total_accounts=total_accounts, entries_by_status=entries_by_status)
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)

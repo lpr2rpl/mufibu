@@ -219,6 +219,14 @@ export default function Journal() {
             </button>
           ))}
         </div>
+        {(filterStatus || searchInput || fromDate || toDate) && (
+          <button
+            style={{ ...S.btn('#888'), padding: '7px 12px', fontSize: 13 }}
+            onClick={() => { setFilterStatus(''); setSearchInput(''); setFromDate(''); setToDate(''); setPage(0); }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div style={S.card}>

@@ -66,6 +66,8 @@ export const updateProfile = (data) => api.patch(API_PATHS.auth.me, data);
 
 // Tenants
 export const getTenants = () => api.get(API_PATHS.tenants.list);
+export const getTenantSummary = (tenantId) =>
+  api.get(API_PATHS.tenants.summary(tenantId));
 export const getTenantsPage = (params) => api.get(API_PATHS.tenants.page, { params });
 export const createTenant = (data) => api.post(API_PATHS.tenants.list, data);
 

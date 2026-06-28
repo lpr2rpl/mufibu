@@ -36,6 +36,10 @@ class TenantCreate(BaseModel):
     name: str
     description: Optional[str] = None
 
+class TenantSummary(BaseModel):
+    total_accounts: int
+    entries_by_status: dict
+
 class TenantOut(BaseModel):
     id: uuid.UUID
     name: str

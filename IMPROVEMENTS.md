@@ -519,3 +519,25 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] `setup.sh` migration coverage confirmed.
       `setup.sh` applies migrations via a glob pattern that covers all numbered
       files including 007-010; no change needed.
+
+## Round 12 (2026-06-28)
+
+### Search and UX
+
+- [x] Account search on `GET /tenants/{id}/accounts/page`.
+      Optional `search` query param added; filters by `account_number`, `name`,
+      or `description` using `ILIKE`.  Accounts.jsx gains a debounced search input.
+
+- [x] Journal default sort changed to `entry_date DESC, entry_number DESC`.
+      Applied to both the list and page endpoints so the most recent entries
+      appear first, matching natural ledger order.
+
+- [x] Expandable lines in Journal.
+      Clicking a row with split lines toggles a nested sub-table showing
+      line_number, account, debit_credit, and amount inline.  Action buttons
+      call `stopPropagation()` to prevent toggling on button click.
+
+- [x] Audit text search.
+      Optional `search` param added to `GET /audit/page`; filters by
+      `notes ILIKE` or `table_name ILIKE`.  Audit.jsx adds a debounced text
+      input alongside the existing action/table dropdowns.

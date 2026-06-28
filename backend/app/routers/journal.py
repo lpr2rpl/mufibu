@@ -154,8 +154,11 @@ def create_entry(
 ):
     require_journal_writer(current, tenant_id)
 
-    if not db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first():
+    _tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first()
+    if not _tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    if not _tenant.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is inactive")
 
     balance_err = lines_balance_error(body.lines)
     if balance_err:
