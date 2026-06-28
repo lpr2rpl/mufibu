@@ -726,3 +726,24 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
       `contracts.js` and `getAccountsTree` helper added to `client.js`.
 
 - [x] `/health/db` endpoint confirmed already present -- no change needed.
+
+---
+
+## Round 21 (2026-06-28)
+
+- [x] Account-type filter dropdown added to `Accounts.jsx`; `filterType`
+      wired into the debounce reload key so the page resets on every change.
+      The `account_type` query parameter was already accepted by the backend
+      paginated endpoint -- only the frontend binding was missing.
+
+- [x] Record-ID UUID filter added to the Audit log page: a debounced text
+      input forwards `record_id` to `GET /audit/page`; the backend
+      `_audit_query` helper and both `/audit` and `/audit/page` endpoints
+      gain the new `record_id: Optional[uuid.UUID]` parameter.
+
+- [x] `GET /tenants/{id}/accounts/tree` backend endpoint added: returns
+      the full chart-of-accounts as a nested `AccountTreeNode` tree (each
+      node carries a `children` list of its direct children); the Pydantic
+      schema uses forward-ref self-referencing with `model_rebuild()`.
+      Frontend bindings (`accountsTree` path in `contracts.js` and
+      `getAccountsTree` helper in `client.js`) added in the same round.

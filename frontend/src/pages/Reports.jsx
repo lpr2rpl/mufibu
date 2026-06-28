@@ -20,10 +20,12 @@ function ReportSection({ title, onLoad, loading, children, extra }) {
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         {extra}
         <button style={btnStyle} onClick={onLoad} disabled={loading}>
-          {loading ? 'Loading...' : 'Load'}
+          Load
         </button>
       </div>
-      {children}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
+      ) : children}
     </div>
   );
 }

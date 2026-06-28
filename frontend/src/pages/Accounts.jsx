@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getAccountsPage, createAccount, updateAccount, getAccountLedger } from '../api/client';
+import { getAccountsPage, createAccount, updateAccount, getAccountLedger, getAccountsTree } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -46,6 +46,9 @@ export default function Accounts() {
   const [ledgerAcct, setLedgerAcct] = useState(null);
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [treeView, setTreeView] = useState(false);
+  const [treeData, setTreeData] = useState([]);
+  const [treeLoading, setTreeLoading] = useState(false);
 
   const search = useDebouncedValue(searchInput, 400);
   const queryKey = `${search}::${showInactive}::${filterType}`;
@@ -74,6 +77,38 @@ export default function Accounts() {
   }, [tenantId, page, search, showInactive, filterType, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadTree = useCallback(async () => {
+    setTreeLoading(true);
+    try {
+      const { data } = await getAccountsTree(tenantId);
+      setTreeData(data);
+    } catch (e) {
+      toast.error(apiError(e, 'Failed to load account tree'));
+    }
+    setTreeLoading(false);
+  }, [tenantId]);
+
+  useEffect(() => { if (treeView) loadTree(); }, [treeView, loadTree]);
+
+  const renderNode = (node, depth = 0) => {
+    const [bg, color] = TYPE_COLORS[node.account_type] || ['#f5f5f5', '#555'];
+    return (
+      <React.Fragment key={node.id}>
+        <tr style={{ opacity: node.is_active ? 1 : 0.5 }}>
+          <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 600, paddingLeft: 8 + depth * 20 }}>
+            {node.account_number}
+          </td>
+          <td style={S.td}>{node.name}</td>
+          <td style={S.td}>
+            <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 12, background: bg, color }}>{node.account_type}</span>
+          </td>
+          <td style={{ ...S.td, color: '#888' }}>{node.description || '-'}</td>
+        </tr>
+        {node.children && node.children.map(child => renderNode(child, depth + 1))}
+      </React.Fragment>
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,11 +163,19 @@ export default function Accounts() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ color: '#1a237e', margin: 0 }}>Chart of Accounts</h2>
-        {canWrite && (
-          <button style={S.btn()} onClick={() => { setEditAcct(null); setForm(EMPTY_FORM); setShowForm(true); }}>
-            + New Account
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            style={{ ...S.btn(treeView ? '#455a64' : undefined), padding: '7px 14px', fontSize: 13 }}
+            onClick={() => setTreeView(v => !v)}
+          >
+            {treeView ? 'List view' : 'Tree view'}
           </button>
-        )}
+          {canWrite && (
+            <button style={S.btn()} onClick={() => { setEditAcct(null); setForm(EMPTY_FORM); setShowForm(true); }}>
+              + New Account
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
         <input
@@ -162,7 +205,26 @@ export default function Accounts() {
       </div>
 
       <div style={S.card}>
-        {loading ? (
+        {treeView ? (
+          treeLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+          ) : treeData.length === 0 ? (
+            <EmptyState message="No accounts found." />
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Number', 'Name', 'Type', 'Description'].map(h => (
+                    <th key={h} style={S.th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {treeData.map(node => renderNode(node))}
+              </tbody>
+            </table>
+          )
+        ) : loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
         ) : accounts.length === 0 ? (
           <EmptyState message="No accounts match your search." />

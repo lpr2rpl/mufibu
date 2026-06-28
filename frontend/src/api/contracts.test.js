@@ -24,6 +24,7 @@ describe('api contract paths', () => {
     expect(API_PATHS.tenants.incomeStatement('t1')).toBe('/tenants/t1/income-statement');
     expect(API_PATHS.tenants.balanceSheet('t1')).toBe('/tenants/t1/balance-sheet');
     expect(API_PATHS.tenants.accountLedger('t1', 'a1')).toBe('/tenants/t1/accounts/a1/ledger');
+    expect(API_PATHS.tenants.accountsTree('t1')).toBe('/tenants/t1/accounts/tree');
   });
 
   test('role assignment paths match backend route shape', () => {
@@ -127,5 +128,14 @@ describe('response shape contracts', () => {
       posted_amount: '10000.00',
     };
     assertHasFields(summary, ['total_accounts', 'entries_by_status', 'posted_amount']);
+  });
+
+  test('AccountTreeNode shape includes id, account_number, name, account_type, children', () => {
+    const node = {
+      id: 'a1', tenant_id: 't1', account_number: '1000', name: 'Assets',
+      account_type: 'asset', parent_account_id: null, description: null,
+      is_active: true, created_at: '2026-01-01T00:00:00Z', children: [],
+    };
+    assertHasFields(node, ['id', 'account_number', 'name', 'account_type', 'is_active', 'children']);
   });
 });

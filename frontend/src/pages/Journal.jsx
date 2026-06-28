@@ -256,7 +256,12 @@ export default function Journal() {
                       style={{ background: e.status === 'rejected' ? '#fffafa' : undefined, cursor: 'pointer' }}
                       onClick={() => setExpandedId(id => id === e.id ? null : e.id)}
                     >
-                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.entry_number}</td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>
+                        <span style={{ display: 'inline-block', width: 14, color: '#888', fontSize: 10, userSelect: 'none' }}>
+                          {expandedId === e.id ? 'v' : '>'}
+                        </span>
+                        {e.entry_number}
+                      </td>
                       <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{e.entry_date}</td>
                       <td style={{ ...S.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.description}>
                         {e.description}
