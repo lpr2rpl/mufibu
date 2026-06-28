@@ -368,7 +368,7 @@ export default function Journal() {
               const pageTotal = entries.reduce((s, e) => s + Number(e.amount), 0);
               return (
                 <div style={{ textAlign: 'right', fontSize: 12, color: '#888', padding: '6px 4px 2px' }}>
-                  {entries.length} {entries.length === 1 ? 'entry' : 'entries'} &middot; Total: {pageTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Showing {entries.length} of {total} {total === 1 ? 'entry' : 'entries'} &middot; Page total: {pageTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               );
             })()}
