@@ -95,7 +95,7 @@ export default function Accounts() {
     const [bg, color] = TYPE_COLORS[node.account_type] || ['#f5f5f5', '#555'];
     return (
       <React.Fragment key={node.id}>
-        <tr style={{ opacity: node.is_active ? 1 : 0.5 }}>
+        <tr style={{ opacity: node.is_active ? 1 : 0.45, fontStyle: node.is_active ? 'normal' : 'italic' }}>
           <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 600, paddingLeft: 8 + depth * 20 }}>
             {node.account_number}
           </td>

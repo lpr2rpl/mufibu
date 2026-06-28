@@ -747,3 +747,25 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
       schema uses forward-ref self-referencing with `model_rebuild()`.
       Frontend bindings (`accountsTree` path in `contracts.js` and
       `getAccountsTree` helper in `client.js`) added in the same round.
+
+---
+
+## Round 22 (2026-06-28)
+
+- [x] Accounts tree view added to `Accounts.jsx`: a "Tree view" / "List view"
+      toggle button fetches the nested chart-of-accounts via `getAccountsTree`
+      and renders each node with depth-scaled left-padding; search and
+      pagination controls are hidden in tree mode.
+
+- [x] Journal row expand chevron: a text chevron (> / v) rendered in the
+      entry-number cell makes the click-to-expand behaviour discoverable
+      without adding an icon library dependency.
+
+- [x] Report section loading spinners: the `ReportSection` helper in
+      `Reports.jsx` now shows a centred `<Spinner />` while the report data
+      is being fetched and disables the Load button during that period.
+
+- [x] `AccountTreeNode` contract test added: path assertion for
+      `API_PATHS.tenants.accountsTree` and shape test for the
+      `{ id, account_number, name, account_type, is_active, children }`
+      response structure (frontend test count raised to 23).

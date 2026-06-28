@@ -37,11 +37,13 @@ export default function Audit() {
   const [tenantList, setTenantList] = useState([]);
   const [searchInput, setSearchInput] = useState('');
   const [recordIdInput, setRecordIdInput] = useState('');
+  const [userIdInput, setUserIdInput] = useState('');
   const [page, setPage] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const search = useDebouncedValue(searchInput, 400);
   const recordId = useDebouncedValue(recordIdInput, 400);
-  const queryKey = `${action}::${table}::${search}::${tenantFilter}::${recordId}`;
+  const userId = useDebouncedValue(userIdInput, 400);
+  const queryKey = `${action}::${table}::${search}::${tenantFilter}::${recordId}::${userId}`;
   const lastQueryRef = useRef(queryKey);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function Audit() {
       if (tenantFilter) params.tenant_id = tenantFilter;
       if (search.trim()) params.search = search.trim();
       if (recordId.trim()) params.record_id = recordId.trim();
+      if (userId.trim()) params.user_id = userId.trim();
       const { data } = await getAuditLogPage(params);
       setEntries(data.items || []);
       setTotal(data.total || 0);
@@ -83,7 +86,7 @@ export default function Audit() {
       toast.error(apiError(e, 'Failed to load audit log'));
     }
     setLoading(false);
-  }, [action, table, tenantFilter, search, recordId, page, queryKey, reloadToken]);
+  }, [action, table, tenantFilter, search, recordId, userId, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -107,6 +110,12 @@ export default function Audit() {
           placeholder="Record ID (UUID)..."
           value={recordIdInput}
           onChange={e => { setRecordIdInput(e.target.value); setPage(0); }}
+        />
+        <input
+          style={{ ...S.input, width: 220 }}
+          placeholder="User ID (UUID)..."
+          value={userIdInput}
+          onChange={e => { setUserIdInput(e.target.value); setPage(0); }}
         />
         <select value={action} onChange={e => { setAction(e.target.value); setPage(0); }}
           style={{ ...S.input, width: 'auto' }}>
