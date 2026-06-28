@@ -644,3 +644,24 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 
 - [x] contracts.test.js: path assertions added for trialBalance and accountLedger;
       TrialBalanceRow shape test added (19 frontend tests total).
+
+---
+
+## Round 17 (2026-06-28)
+
+- [x] `same_account_error()` pure helper added to `journal_workflow.py`; two unit
+      tests added; `create_entry` and `update_entry` return HTTP 422 when
+      `main_account_id == contra_account_id`.
+
+- [x] `reverse_entry` now sets the reversal `entry_date` to today's date
+      (UTC) rather than the original entry's date, matching standard accounting
+      practice where reversals are dated at creation time.
+
+- [x] `GET /tenants/{id}/income-statement` added: revenue/expense breakdown with
+      `net_income`; `IncomeStatementRow`/`IncomeStatementOut` schemas added.
+      Reports.jsx gains an Income Statement section with Revenue/Expenses
+      sub-tables and a highlighted Net Income row.
+
+- [x] `Audit.jsx` gains a tenant filter `<select>` backed by the existing
+      `tenant_id` query param on the audit page endpoint; PowerAdmin/Auditor
+      sees all tenants, other users see only their tenants.

@@ -1,12 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, getTrialBalance, getIncomeStatement } from '../api/client';
+import { getTenants, getTrialBalance, getIncomeStatement, getBalanceSheet } from '../api/client';
 import Spinner from '../components/Spinner';
 import { getTenantIds, truncateId } from '../utils/roles';
 import { card, th, td } from '../styles/common';
 
 const S = { card, th, td };
+
+const btnStyle = {
+  padding: '6px 14px', background: '#1a237e', color: '#fff',
+  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
+};
+
+function ReportSection({ title, onLoad, loading, children }) {
+  return (
+    <div style={S.card}>
+      <h3 style={{ margin: '0 0 14px', fontSize: 15, color: '#333' }}>{title}</h3>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+        <button style={btnStyle} onClick={onLoad} disabled={loading}>
+          {loading ? 'Loading...' : 'Load'}
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MonoCell({ value, color }) {
+  return (
+    <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', color: color || 'inherit' }}>
+      {Number(value).toFixed(2)}
+    </td>
+  );
+}
 
 export default function Reports() {
   const { roles, isPowerAdmin, isAuditor } = useAuth();
@@ -15,10 +42,13 @@ export default function Reports() {
 
   const [tenants, setTenants] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
+  const [asOfDate, setAsOfDate] = useState('');
   const [trialBalance, setTrialBalance] = useState(null);
   const [incomeStatement, setIncomeStatement] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [balanceSheet, setBalanceSheet] = useState(null);
+  const [tbLoading, setTbLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [bsLoading, setBsLoading] = useState(false);
   const [tenantsLoading, setTenantsLoading] = useState(true);
 
   useEffect(() => {
@@ -44,18 +74,33 @@ export default function Reports() {
   const tenantList = tenants.length > 0
     ? tenants.filter(t => tenantIds.length === 0 || tenantIds.includes(t.id))
     : tenantIds.map(id => ({ id, name: truncateId(id) }));
+  const effectiveTenants = tenantList.length > 0 ? tenantList : tenantIds.map(id => ({ id, name: truncateId(id) }));
+
+  const handleTenantChange = (e) => {
+    setSelectedTenant(e.target.value);
+    setTrialBalance(null);
+    setIncomeStatement(null);
+    setBalanceSheet(null);
+  };
+
+  const handleDateChange = (e) => {
+    setAsOfDate(e.target.value);
+    setTrialBalance(null);
+    setIncomeStatement(null);
+    setBalanceSheet(null);
+  };
 
   const handleLoadTrialBalance = async () => {
     if (!selectedTenant) return;
-    setLoading(true);
+    setTbLoading(true);
     setTrialBalance(null);
     try {
-      const { data } = await getTrialBalance(selectedTenant);
+      const { data } = await getTrialBalance(selectedTenant, asOfDate || undefined);
       setTrialBalance(data);
     } catch {
       toast.error('Failed to load trial balance');
     }
-    setLoading(false);
+    setTbLoading(false);
   };
 
   const handleLoadIncomeStatement = async () => {
@@ -63,12 +108,25 @@ export default function Reports() {
     setIsLoading(true);
     setIncomeStatement(null);
     try {
-      const { data } = await getIncomeStatement(selectedTenant);
+      const { data } = await getIncomeStatement(selectedTenant, asOfDate || undefined);
       setIncomeStatement(data);
     } catch {
       toast.error('Failed to load income statement');
     }
     setIsLoading(false);
+  };
+
+  const handleLoadBalanceSheet = async () => {
+    if (!selectedTenant) return;
+    setBsLoading(true);
+    setBalanceSheet(null);
+    try {
+      const { data } = await getBalanceSheet(selectedTenant, asOfDate || undefined);
+      setBalanceSheet(data);
+    } catch {
+      toast.error('Failed to load balance sheet');
+    }
+    setBsLoading(false);
   };
 
   if (tenantsLoading) {
@@ -79,41 +137,47 @@ export default function Reports() {
     );
   }
 
-  const effectiveTenants = tenantList.length > 0 ? tenantList : tenantIds.map(id => ({ id, name: truncateId(id) }));
-
   return (
     <div>
       <h2 style={{ color: '#1a237e', marginBottom: 4 }}>Reports</h2>
-      <p style={{ color: '#888', fontSize: 14, marginBottom: 24 }}>
+      <p style={{ color: '#888', fontSize: 14, marginBottom: 16 }}>
         Financial reports for your accounting tenants.
       </p>
 
-      <div style={S.card}>
-        <h3 style={{ margin: '0 0 14px', fontSize: 15, color: '#333' }}>Trial Balance</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-          {effectiveTenants.length > 1 && (
-            <select
-              style={{ fontSize: 13, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 4 }}
-              value={selectedTenant || ''}
-              onChange={e => { setSelectedTenant(e.target.value); setTrialBalance(null); }}
-            >
-              {effectiveTenants.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            style={{
-              padding: '6px 14px', background: '#1a237e', color: '#fff',
-              border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-            }}
-            onClick={handleLoadTrialBalance}
-            disabled={!selectedTenant || loading}
+      {/* Shared controls */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+        {effectiveTenants.length > 1 && (
+          <select
+            style={{ fontSize: 13, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 4 }}
+            value={selectedTenant || ''}
+            onChange={handleTenantChange}
           >
-            {loading ? 'Loading...' : 'Load'}
+            {effectiveTenants.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
+        <label style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
+          As of date:
+          <input
+            type="date"
+            value={asOfDate}
+            onChange={handleDateChange}
+            style={{ fontSize: 13, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+          />
+        </label>
+        {asOfDate && (
+          <button
+            onClick={() => { setAsOfDate(''); setTrialBalance(null); setIncomeStatement(null); setBalanceSheet(null); }}
+            style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', background: '#f5f5f5', color: '#555' }}
+          >
+            Clear date
           </button>
-        </div>
+        )}
+      </div>
 
+      {/* Trial Balance */}
+      <ReportSection title="Trial Balance" onLoad={handleLoadTrialBalance} loading={tbLoading}>
         {trialBalance && (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -129,11 +193,9 @@ export default function Reports() {
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
                   <td style={S.td}>{r.name}</td>
                   <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{r.account_type}</td>
-                  <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right' }}>{Number(r.debit_total).toFixed(2)}</td>
-                  <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right' }}>{Number(r.credit_total).toFixed(2)}</td>
-                  <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', color: Number(r.net) < 0 ? '#c62828' : '#2e7d32' }}>
-                    {Number(r.net).toFixed(2)}
-                  </td>
+                  <MonoCell value={r.debit_total} />
+                  <MonoCell value={r.credit_total} />
+                  <MonoCell value={r.net} color={Number(r.net) < 0 ? '#c62828' : '#2e7d32'} />
                 </tr>
               ))}
               {trialBalance.length === 0 && (
@@ -142,30 +204,10 @@ export default function Reports() {
             </tbody>
           </table>
         )}
-      </div>
+      </ReportSection>
 
-      <div style={S.card}>
-        <h3 style={{ margin: '0 0 14px', fontSize: 15, color: '#333' }}>Income Statement</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-          {effectiveTenants.length > 1 && (
-            <select
-              style={{ fontSize: 13, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 4 }}
-              value={selectedTenant || ''}
-              onChange={e => { setSelectedTenant(e.target.value); setIncomeStatement(null); }}
-            >
-              {effectiveTenants.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            style={{ padding: '6px 14px', background: '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
-            onClick={handleLoadIncomeStatement}
-            disabled={!selectedTenant || isLoading}
-          >
-            {isLoading ? 'Loading...' : 'Load'}
-          </button>
-        </div>
+      {/* Income Statement */}
+      <ReportSection title="Income Statement" onLoad={handleLoadIncomeStatement} loading={isLoading}>
         {incomeStatement && (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -177,7 +219,7 @@ export default function Reports() {
                 <tr key={r.account_id}>
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
                   <td style={S.td}>{r.name}</td>
-                  <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', color: '#2e7d32' }}>{Number(r.net).toFixed(2)}</td>
+                  <MonoCell value={r.net} color="#2e7d32" />
                 </tr>
               ))}
               {incomeStatement.revenue.length === 0 && (
@@ -188,7 +230,7 @@ export default function Reports() {
                 <tr key={r.account_id}>
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
                   <td style={S.td}>{r.name}</td>
-                  <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', color: '#c62828' }}>{Number(r.net).toFixed(2)}</td>
+                  <MonoCell value={r.net} color="#c62828" />
                 </tr>
               ))}
               {incomeStatement.expense.length === 0 && (
@@ -196,19 +238,79 @@ export default function Reports() {
               )}
               <tr style={{ borderTop: '2px solid #1a237e' }}>
                 <td colSpan={2} style={{ ...S.td, fontWeight: 700 }}>Net Income</td>
-                <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', fontWeight: 700, color: Number(incomeStatement.net_income) >= 0 ? '#2e7d32' : '#c62828' }}>
-                  {Number(incomeStatement.net_income).toFixed(2)}
+                <MonoCell value={incomeStatement.net_income} color={Number(incomeStatement.net_income) >= 0 ? '#2e7d32' : '#c62828'} />
+              </tr>
+            </tbody>
+          </table>
+        )}
+      </ReportSection>
+
+      {/* Balance Sheet */}
+      <ReportSection title="Balance Sheet" onLoad={handleLoadBalanceSheet} loading={bsLoading}>
+        {balanceSheet && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>{['Number', 'Name', 'Net'].map(h => <th key={h} style={{ ...S.th, fontSize: 12 }}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {/* Assets */}
+              <tr><td colSpan={3} style={{ ...S.td, fontWeight: 700, background: '#f5f5f5', color: '#1a237e' }}>Assets</td></tr>
+              {balanceSheet.assets.map(r => (
+                <tr key={r.account_id}>
+                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
+                  <td style={S.td}>{r.name}</td>
+                  <MonoCell value={r.net} />
+                </tr>
+              ))}
+              {balanceSheet.assets.length === 0 && (
+                <tr><td colSpan={3} style={{ ...S.td, color: '#888', textAlign: 'center' }}>No asset accounts.</td></tr>
+              )}
+              <tr style={{ background: '#e8eaf6' }}>
+                <td colSpan={2} style={{ ...S.td, fontWeight: 700 }}>Total Assets</td>
+                <MonoCell value={balanceSheet.total_assets} color="#1a237e" />
+              </tr>
+              {/* Liabilities */}
+              <tr><td colSpan={3} style={{ ...S.td, fontWeight: 700, background: '#f5f5f5', color: '#1a237e' }}>Liabilities</td></tr>
+              {balanceSheet.liabilities.map(r => (
+                <tr key={r.account_id}>
+                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
+                  <td style={S.td}>{r.name}</td>
+                  <MonoCell value={r.net} />
+                </tr>
+              ))}
+              {balanceSheet.liabilities.length === 0 && (
+                <tr><td colSpan={3} style={{ ...S.td, color: '#888', textAlign: 'center' }}>No liability accounts.</td></tr>
+              )}
+              <tr style={{ background: '#e8eaf6' }}>
+                <td colSpan={2} style={{ ...S.td, fontWeight: 700 }}>Total Liabilities</td>
+                <MonoCell value={balanceSheet.total_liabilities} color="#1a237e" />
+              </tr>
+              {/* Equity */}
+              <tr><td colSpan={3} style={{ ...S.td, fontWeight: 700, background: '#f5f5f5', color: '#1a237e' }}>Equity</td></tr>
+              {balanceSheet.equity.map(r => (
+                <tr key={r.account_id}>
+                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
+                  <td style={S.td}>{r.name}</td>
+                  <MonoCell value={r.net} />
+                </tr>
+              ))}
+              {balanceSheet.equity.length === 0 && (
+                <tr><td colSpan={3} style={{ ...S.td, color: '#888', textAlign: 'center' }}>No equity accounts.</td></tr>
+              )}
+              <tr style={{ background: '#e8eaf6' }}>
+                <td colSpan={2} style={{ ...S.td, fontWeight: 700 }}>Total Equity</td>
+                <MonoCell value={balanceSheet.total_equity} color="#1a237e" />
+              </tr>
+              {/* Summary */}
+              <tr style={{ borderTop: '2px solid #1a237e' }}>
+                <td colSpan={3} style={{ ...S.td, fontSize: 12, color: '#555', textAlign: 'right' }}>
+                  Assets ({Number(balanceSheet.total_assets).toFixed(2)}) = Liabilities ({Number(balanceSheet.total_liabilities).toFixed(2)}) + Equity ({Number(balanceSheet.total_equity).toFixed(2)})
                 </td>
               </tr>
             </tbody>
           </table>
         )}
-      </div>
-
-      <div style={{ ...S.card, color: '#888', fontSize: 14 }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 15, color: '#333' }}>More reports coming soon</h3>
-        <p style={{ margin: 0 }}>Balance sheet and cash flow statement are planned.</p>
-      </div>
+      </ReportSection>
     </div>
   );
 }

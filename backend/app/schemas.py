@@ -356,6 +356,27 @@ class IncomeStatementOut(BaseModel):
     net_income: Decimal
 
 # ------------------------------------------------------------------
+# Balance Sheet
+# ------------------------------------------------------------------
+
+class BalanceSheetRow(BaseModel):
+    account_id: uuid.UUID
+    account_number: str
+    name: str
+    account_type: str
+    debit_total: Decimal
+    credit_total: Decimal
+    net: Decimal
+
+class BalanceSheetOut(BaseModel):
+    assets: List[BalanceSheetRow]
+    liabilities: List[BalanceSheetRow]
+    equity: List[BalanceSheetRow]
+    total_assets: Decimal
+    total_liabilities: Decimal
+    total_equity: Decimal
+
+# ------------------------------------------------------------------
 # Audit Log
 # ------------------------------------------------------------------
 

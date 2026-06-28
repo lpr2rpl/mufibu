@@ -3,6 +3,7 @@ Tenant management.
 Only PowerAdmin may create tenants or list all tenants.
 """
 import uuid
+from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 
@@ -15,7 +16,11 @@ from app.auth.policies import require_power_admin, require_journal_read
 from app.database import get_db
 from app.pagination import build_page
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine, Role, Tenant, User, UserRoleAssignment
-from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary, TenantUpdate, TrialBalanceRow, IncomeStatementOut, IncomeStatementRow
+from app.schemas import (
+    TenantCreate, TenantOut, TenantPage, TenantSummary, TenantUpdate,
+    TrialBalanceRow, IncomeStatementOut, IncomeStatementRow,
+    BalanceSheetOut, BalanceSheetRow,
+)
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -163,6 +168,7 @@ def update_tenant(
 @router.get("/{tenant_id}/trial-balance", response_model=List[TrialBalanceRow])
 def get_trial_balance(
     tenant_id: uuid.UUID,
+    as_of_date: Optional[date] = Query(None),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -180,6 +186,8 @@ def get_trial_balance(
             JournalEntry.status == "posted",
             JournalEntry.deleted_at.is_(None),
         ]
+        if as_of_date:
+            posted_filter.append(JournalEntry.entry_date <= as_of_date)
         hdr_debit = (
             db.query(func.sum(JournalEntry.amount))
             .filter(*posted_filter, JournalEntry.main_account_id == acct.id)
@@ -229,6 +237,7 @@ def get_trial_balance(
 @router.get("/{tenant_id}/income-statement", response_model=IncomeStatementOut)
 def get_income_statement(
     tenant_id: uuid.UUID,
+    as_of_date: Optional[date] = Query(None),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -248,6 +257,8 @@ def get_income_statement(
         JournalEntry.status == "posted",
         JournalEntry.deleted_at.is_(None),
     ]
+    if as_of_date:
+        posted_filter.append(JournalEntry.entry_date <= as_of_date)
     revenue_rows, expense_rows = [], []
     for acct in accounts:
         hdr_debit = (
@@ -305,6 +316,99 @@ def get_income_statement(
         revenue=revenue_rows,
         expense=expense_rows,
         net_income=total_revenue - total_expenses,
+    )
+
+
+@router.get("/{tenant_id}/balance-sheet", response_model=BalanceSheetOut)
+def get_balance_sheet(
+    tenant_id: uuid.UUID,
+    as_of_date: Optional[date] = Query(None),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_journal_read(current, tenant_id)
+    accounts = (
+        db.query(Account)
+        .filter(
+            Account.tenant_id == tenant_id,
+            Account.deleted_at.is_(None),
+            Account.account_type.in_(["asset", "liability", "equity"]),
+        )
+        .order_by(Account.account_number)
+        .all()
+    )
+    posted_filter = [
+        JournalEntry.tenant_id == tenant_id,
+        JournalEntry.status == "posted",
+        JournalEntry.deleted_at.is_(None),
+    ]
+    if as_of_date:
+        posted_filter.append(JournalEntry.entry_date <= as_of_date)
+
+    asset_rows, liability_rows, equity_rows = [], [], []
+    for acct in accounts:
+        hdr_debit = (
+            db.query(func.sum(JournalEntry.amount))
+            .filter(*posted_filter, JournalEntry.main_account_id == acct.id)
+            .scalar() or Decimal("0")
+        )
+        hdr_credit = (
+            db.query(func.sum(JournalEntry.amount))
+            .filter(*posted_filter, JournalEntry.contra_account_id == acct.id)
+            .scalar() or Decimal("0")
+        )
+        line_debit = (
+            db.query(func.sum(JournalEntryLine.amount))
+            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
+            .filter(
+                *posted_filter,
+                JournalEntryLine.account_id == acct.id,
+                JournalEntryLine.debit_credit == "debit",
+                JournalEntryLine.deleted_at.is_(None),
+            )
+            .scalar() or Decimal("0")
+        )
+        line_credit = (
+            db.query(func.sum(JournalEntryLine.amount))
+            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
+            .filter(
+                *posted_filter,
+                JournalEntryLine.account_id == acct.id,
+                JournalEntryLine.debit_credit == "credit",
+                JournalEntryLine.deleted_at.is_(None),
+            )
+            .scalar() or Decimal("0")
+        )
+        debit_total = hdr_debit + line_debit
+        credit_total = hdr_credit + line_credit
+        # Assets are debit-normal; liabilities and equity are credit-normal.
+        net = (debit_total - credit_total) if acct.account_type == "asset" else (credit_total - debit_total)
+        row = BalanceSheetRow(
+            account_id=acct.id,
+            account_number=acct.account_number,
+            name=acct.name,
+            account_type=acct.account_type,
+            debit_total=debit_total,
+            credit_total=credit_total,
+            net=net,
+        )
+        if acct.account_type == "asset":
+            asset_rows.append(row)
+        elif acct.account_type == "liability":
+            liability_rows.append(row)
+        else:
+            equity_rows.append(row)
+
+    total_assets = sum(r.net for r in asset_rows)
+    total_liabilities = sum(r.net for r in liability_rows)
+    total_equity = sum(r.net for r in equity_rows)
+    return BalanceSheetOut(
+        assets=asset_rows,
+        liabilities=liability_rows,
+        equity=equity_rows,
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
     )
 
 
