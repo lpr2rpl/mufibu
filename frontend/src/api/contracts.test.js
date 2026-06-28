@@ -20,6 +20,8 @@ describe('api contract paths', () => {
     expect(API_PATHS.tenants.journalReverse('t1', 'e1')).toBe('/tenants/t1/journal/e1/reverse');
     expect(API_PATHS.tenants.summary('t1')).toBe('/tenants/t1/summary');
     expect(API_PATHS.tenants.detail('t1')).toBe('/tenants/t1');
+    expect(API_PATHS.tenants.trialBalance('t1')).toBe('/tenants/t1/trial-balance');
+    expect(API_PATHS.tenants.accountLedger('t1', 'a1')).toBe('/tenants/t1/accounts/a1/ledger');
   });
 
   test('role assignment paths match backend route shape', () => {
@@ -93,5 +95,13 @@ describe('response shape contracts', () => {
       entries_by_status: { draft: 1, pending_approval: 0, approved: 0, rejected: 0, posted: 4 },
     };
     assertHasFields(summary, ['total_accounts', 'entries_by_status']);
+  });
+
+  test('TrialBalanceRow shape is correct', () => {
+    const row = {
+      account_id: 'a1', account_number: '1000', name: 'Cash',
+      account_type: 'asset', debit_total: '500.00', credit_total: '200.00', net: '300.00',
+    };
+    assertHasFields(row, ['account_id', 'account_number', 'name', 'account_type', 'debit_total', 'credit_total', 'net']);
   });
 });

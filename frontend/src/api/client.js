@@ -75,6 +75,7 @@ export const updateTenant = (tenantId, data) => api.patch(API_PATHS.tenants.deta
 // Users
 export const getUsers = () => api.get(API_PATHS.users.list);
 export const getUsersPage = (params) => api.get(API_PATHS.users.page, { params });
+export const getUser = (userId) => api.get(API_PATHS.users.detail(userId));
 export const createUser = (data) => api.post(API_PATHS.users.list, data);
 export const updateUser = (id, data) => api.patch(API_PATHS.users.detail(id), data);
 

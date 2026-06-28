@@ -105,6 +105,7 @@ export default function Layout({ children }) {
       { to: `/journal/${activeTenant}`, label: 'Journal Entries' },
     activeTenant && canReadAccounts(roles, activeTenant) &&
       { to: `/accounts/${activeTenant}`, label: 'Chart of Accounts' },
+    activeTenant && { to: '/reports', label: 'Reports' },
     canShowUserRoleRoute(roles) && { section: 'Administration' },
     canShowUserRoleRoute(roles) && { to: '/users', label: 'Users & Roles' },
     canShowTenantsRoute(roles) && { to: '/tenants', label: 'Tenants' },

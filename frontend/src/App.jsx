@@ -12,6 +12,7 @@ import Accounts from './pages/Accounts';
 import Users from './pages/Users';
 import Tenants from './pages/Tenants';
 import Audit from './pages/Audit';
+import Reports from './pages/Reports';
 import {
   canShowAuditRoute,
   canShowTenantsRoute,
@@ -74,6 +75,14 @@ function AppRoutes() {
                   element={
                     <ProtectedRoute allow={(auth) => canShowAuditRoute(auth.roles)}>
                       <Audit />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute allow={(auth) => auth.roles.length > 0}>
+                      <Reports />
                     </ProtectedRoute>
                   }
                 />

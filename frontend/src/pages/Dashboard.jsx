@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, getTenantSummary, getTrialBalance } from '../api/client';
+import { getTenants, getTenantSummary } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
 import { getTenantIds, truncateId } from '../utils/roles';
@@ -38,8 +38,6 @@ export default function Dashboard() {
   const toast = useToast();
   const [tenants, setTenants] = useState([]);
   const [summaryByTenant, setSummaryByTenant] = useState({});
-  const [trialBalanceByTenant, setTrialBalanceByTenant] = useState({});
-  const [tbTenantId, setTbTenantId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const tenantIds = getTenantIds(roles);
@@ -172,59 +170,13 @@ export default function Dashboard() {
       )}
 
 
-      {hasTenantAccess && tenantIds.length > 0 && (
+      {hasTenantAccess && (
         <div style={S.card}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#333' }}>Trial Balance</h3>
-          <div style={{ marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-            {tenantIds.length > 1 && (
-              <select style={{ fontSize: 13, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
-                value={tbTenantId || tenantIds[0]}
-                onChange={e => { setTbTenantId(e.target.value); setTrialBalanceByTenant({}); }}>
-                {tenantIds.map(tid => {
-                  const t = tenants.find(x => x.id === tid);
-                  return <option key={tid} value={tid}>{t ? t.name : tid.slice(0, 8)}</option>;
-                })}
-              </select>
-            )}
-            <button
-              style={{ ...S.quickLink('#1a237e', '#e8eaf6'), cursor: 'pointer', border: 'none' }}
-              onClick={async () => {
-                const tid = tbTenantId || tenantIds[0];
-                try {
-                  const { data } = await getTrialBalance(tid);
-                  setTrialBalanceByTenant(prev => ({ ...prev, [tid]: data }));
-                } catch {}
-              }}
-            >Load Trial Balance</button>
-          </div>
-          {(() => {
-            const tid = tbTenantId || tenantIds[0];
-            const rows = trialBalanceByTenant[tid];
-            if (!rows) return null;
-            return (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead><tr>
-                  {['Number', 'Name', 'Type', 'Debit', 'Credit', 'Net'].map(h => (
-                    <th key={h} style={{ ...S.th, fontSize: 12 }}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>
-                  {rows.map(r => (
-                    <tr key={r.account_id} style={{ opacity: Number(r.debit_total) === 0 && Number(r.credit_total) === 0 ? 0.4 : 1 }}>
-                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.account_number}</td>
-                      <td style={S.td}>{r.name}</td>
-                      <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{r.account_type}</td>
-                      <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right' }}>{Number(r.debit_total).toFixed(2)}</td>
-                      <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right' }}>{Number(r.credit_total).toFixed(2)}</td>
-                      <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right', color: Number(r.net) < 0 ? '#c62828' : '#2e7d32' }}>
-                        {Number(r.net).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            );
-          })()}
+          <h3 style={{ margin: '0 0 8px', fontSize: 15, color: '#333' }}>Reports</h3>
+          <p style={{ margin: '0 0 10px', fontSize: 13, color: '#666' }}>
+            View trial balance and other financial reports.
+          </p>
+          <Link to="/reports" style={S.quickLink('#1a237e', '#e8eaf6')}>View Reports &rarr;</Link>
         </div>
       )}
 
