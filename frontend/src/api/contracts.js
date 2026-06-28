@@ -24,6 +24,8 @@ export const API_PATHS = {
     journalPost: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/post`,
     journalReverse: (tenantId, entryId) => `/tenants/${tenantId}/journal/${entryId}/reverse`,
     summary: (tenantId) => `/tenants/${tenantId}/summary`,
+    trialBalance: (tenantId) => `/tenants/${tenantId}/trial-balance`,
+    accountLedger: (tenantId, accountId) => `/tenants/${tenantId}/accounts/${accountId}/ledger`,
   },
   users: {
     list: '/users',

@@ -3,17 +3,19 @@ Tenant management.
 Only PowerAdmin may create tenants or list all tenants.
 """
 import uuid
+from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.policies import require_power_admin, require_journal_read
 from app.database import get_db
 from app.pagination import build_page
-from app.models import Account, AuditLog, JournalEntry, Role, Tenant, User, UserRoleAssignment
-from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary, TenantUpdate
+from app.models import Account, AuditLog, JournalEntry, JournalEntryLine, Role, Tenant, User, UserRoleAssignment
+from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary, TenantUpdate, TrialBalanceRow
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -156,6 +158,72 @@ def update_tenant(
     db.commit()
     db.refresh(tenant)
     return tenant
+
+
+@router.get("/{tenant_id}/trial-balance", response_model=List[TrialBalanceRow])
+def get_trial_balance(
+    tenant_id: uuid.UUID,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_journal_read(current, tenant_id)
+    accounts = (
+        db.query(Account)
+        .filter(Account.tenant_id == tenant_id, Account.deleted_at.is_(None))
+        .order_by(Account.account_number)
+        .all()
+    )
+    rows = []
+    for acct in accounts:
+        posted_filter = [
+            JournalEntry.tenant_id == tenant_id,
+            JournalEntry.status == "posted",
+            JournalEntry.deleted_at.is_(None),
+        ]
+        hdr_debit = (
+            db.query(func.sum(JournalEntry.amount))
+            .filter(*posted_filter, JournalEntry.main_account_id == acct.id)
+            .scalar() or Decimal("0")
+        )
+        hdr_credit = (
+            db.query(func.sum(JournalEntry.amount))
+            .filter(*posted_filter, JournalEntry.contra_account_id == acct.id)
+            .scalar() or Decimal("0")
+        )
+        line_debit = (
+            db.query(func.sum(JournalEntryLine.amount))
+            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
+            .filter(
+                *posted_filter,
+                JournalEntryLine.account_id == acct.id,
+                JournalEntryLine.debit_credit == "debit",
+                JournalEntryLine.deleted_at.is_(None),
+            )
+            .scalar() or Decimal("0")
+        )
+        line_credit = (
+            db.query(func.sum(JournalEntryLine.amount))
+            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
+            .filter(
+                *posted_filter,
+                JournalEntryLine.account_id == acct.id,
+                JournalEntryLine.debit_credit == "credit",
+                JournalEntryLine.deleted_at.is_(None),
+            )
+            .scalar() or Decimal("0")
+        )
+        debit_total = hdr_debit + line_debit
+        credit_total = hdr_credit + line_credit
+        rows.append(TrialBalanceRow(
+            account_id=acct.id,
+            account_number=acct.account_number,
+            name=acct.name,
+            account_type=acct.account_type,
+            debit_total=debit_total,
+            credit_total=credit_total,
+            net=debit_total - credit_total,
+        ))
+    return rows
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)

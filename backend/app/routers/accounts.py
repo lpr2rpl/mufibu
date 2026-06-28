@@ -24,7 +24,7 @@ from app.database import get_db
 from app.pagination import build_page
 from app.account_rules import cycle_exists
 from app.models import Account, AuditLog, JournalEntry, Tenant
-from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate
+from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate, JournalEntryOut
 
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
 
@@ -227,6 +227,39 @@ def update_account(
     db.commit()
     db.refresh(acct)
     return acct
+
+
+@router.get("/{account_id}/ledger", response_model=List[JournalEntryOut])
+def get_account_ledger(
+    tenant_id: uuid.UUID,
+    account_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_account_read(current, tenant_id)
+    acct = db.query(Account).filter(
+        Account.id == account_id, Account.tenant_id == tenant_id, Account.deleted_at.is_(None)
+    ).first()
+    if not acct:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    return (
+        db.query(JournalEntry)
+        .filter(
+            JournalEntry.tenant_id == tenant_id,
+            JournalEntry.status == "posted",
+            JournalEntry.deleted_at.is_(None),
+            or_(
+                JournalEntry.main_account_id == account_id,
+                JournalEntry.contra_account_id == account_id,
+            ),
+        )
+        .order_by(JournalEntry.entry_date.desc(), JournalEntry.entry_number.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
