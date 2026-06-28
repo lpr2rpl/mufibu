@@ -62,6 +62,7 @@ def _assignment_query(
     user_id: Optional[uuid.UUID],
     tenant_id: Optional[uuid.UUID],
     active_only: bool,
+    role_name: Optional[str] = None,
 ):
     q = (
         db.query(UserRoleAssignment)
@@ -94,6 +95,9 @@ def _assignment_query(
             (UserRoleAssignment.valid_until.is_(None)) | (UserRoleAssignment.valid_until > now),
         )
 
+    if role_name:
+        q = q.join(UserRoleAssignment.role).filter(Role.name == role_name)
+
     return q
 
 
@@ -119,12 +123,13 @@ def list_assignments(
     user_id: Optional[uuid.UUID] = Query(None),
     tenant_id: Optional[uuid.UUID] = Query(None),
     active_only: bool = Query(True),
+    role_name: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = _assignment_query(db, current, user_id, tenant_id, active_only)
+    q = _assignment_query(db, current, user_id, tenant_id, active_only, role_name)
     assignments = q.order_by(UserRoleAssignment.assigned_at.desc()).offset(skip).limit(limit).all()
     return [_assignment_out(a) for a in assignments]
 
@@ -134,12 +139,13 @@ def list_assignments_page(
     user_id: Optional[uuid.UUID] = Query(None),
     tenant_id: Optional[uuid.UUID] = Query(None),
     active_only: bool = Query(True),
+    role_name: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = _assignment_query(db, current, user_id, tenant_id, active_only)
+    q = _assignment_query(db, current, user_id, tenant_id, active_only, role_name)
     return build_page(RoleAssignmentPage, q.order_by(UserRoleAssignment.assigned_at.desc()), skip, limit, _assignment_out)
 
 

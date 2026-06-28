@@ -48,6 +48,7 @@ export default function Users() {
   const [assignmentPage, setAssignmentPage] = useState(0);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
+  const [assignmentRoleFilter, setAssignmentRoleFilter] = useState('');
   const [showUserForm, setShowUserForm] = useState(false);
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [extendModal, setExtendModal] = useState(null);
@@ -65,7 +66,7 @@ export default function Users() {
       if (userSearch.trim()) userParams.search = userSearch.trim();
       const [u, a, r, t] = await Promise.all([
         getUsersPage(userParams),
-        getAssignmentsPage({ skip: pageOffset(assignmentPage, LIMIT), limit: LIMIT, active_only: false }),
+        getAssignmentsPage({ skip: pageOffset(assignmentPage, LIMIT), limit: LIMIT, active_only: false, ...(assignmentRoleFilter ? { role_name: assignmentRoleFilter } : {}) }),
         getRoles(),
         isPowerAdmin() ? getTenants() : Promise.resolve({ data: [] }),
       ]);
@@ -79,7 +80,7 @@ export default function Users() {
       toast.error(apiError(e, 'Failed to load'));
     }
     setLoading(false);
-  }, [assignmentPage, isPowerAdmin, reloadToken, userPage, userSearch]);
+  }, [assignmentPage, assignmentRoleFilter, isPowerAdmin, reloadToken, userPage, userSearch]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -255,7 +256,15 @@ export default function Users() {
 
         {tab === 'roles' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+              <select
+                style={{ ...S.input, width: 180, marginBottom: 0 }}
+                value={assignmentRoleFilter}
+                onChange={e => { setAssignmentRoleFilter(e.target.value); setAssignmentPage(0); }}
+              >
+                <option value="">All roles</option>
+                {allRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              </select>
               {(isPowerAdmin() || isAdmin) && (
                 <button style={S.btn()} onClick={() => setShowAssignForm(true)}>+ Assign Role</button>
               )}

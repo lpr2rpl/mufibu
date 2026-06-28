@@ -686,3 +686,23 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] `getTrialBalance`, `getIncomeStatement`, `getBalanceSheet` in `client.js`
       updated to pass `as_of_date` as a query param; Reports page clears loaded
       data when the date or tenant selection changes.
+
+---
+
+## Round 19 (2026-06-28)
+
+- [x] Income statement `from_date` lower bound added alongside `as_of_date`
+      for period-scoped P&L reporting (e.g. Q1 2026); `getIncomeStatement`
+      updated to accept and pass the param; Reports.jsx adds a "From" date
+      input to the Income Statement section only.
+
+- [x] `TenantSummary` schema gains `posted_amount` (SUM of posted entry
+      amounts); the summary endpoint computes it with a single DB aggregate
+      query; Dashboard displays "Total Posted" beside the status counts.
+
+- [x] Contract tests expanded: `incomeStatement` and `balanceSheet` path
+      assertions added; `IncomeStatementOut`, `BalanceSheetOut`, and updated
+      `TenantSummary` (with `posted_amount`) shape tests added (19 -> 22
+      frontend tests).
+
+- [x] `/health/db` endpoint confirmed already present -- no change needed.

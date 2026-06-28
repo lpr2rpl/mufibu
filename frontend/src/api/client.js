@@ -95,6 +95,8 @@ export const getAccountsPage = (tenantId, params) =>
   api.get(API_PATHS.tenants.accountsPage(tenantId), { params });
 export const createAccount = (tenantId, data) =>
   api.post(API_PATHS.tenants.accounts(tenantId), data);
+export const getAccount = (tenantId, accountId) =>
+  api.get(API_PATHS.tenants.account(tenantId, accountId));
 export const updateAccount = (tenantId, accountId, data) =>
   api.patch(API_PATHS.tenants.account(tenantId, accountId), data);
 export const getAccountLedger = (tenantId, accountId, params) =>
