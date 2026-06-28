@@ -41,13 +41,14 @@ export default function Accounts() {
   const [editAcct, setEditAcct] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [searchInput, setSearchInput] = useState('');
+  const [filterType, setFilterType] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [ledgerAcct, setLedgerAcct] = useState(null);
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const search = useDebouncedValue(searchInput, 400);
-  const queryKey = `${search}::${showInactive}`;
+  const queryKey = `${search}::${showInactive}::${filterType}`;
   const lastQueryRef = useRef(queryKey);
 
   const load = useCallback(async () => {
@@ -61,6 +62,7 @@ export default function Accounts() {
     try {
       const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (showInactive) params.active_only = false;
+      if (filterType) params.account_type = filterType;
       if (search.trim()) params.search = search.trim();
       const { data } = await getAccountsPage(tenantId, params);
       setAccounts(data.items || []);
@@ -69,7 +71,7 @@ export default function Accounts() {
       toast.error(apiError(e, 'Failed to load accounts'));
     }
     setLoading(false);
-  }, [tenantId, page, search, showInactive, queryKey, reloadToken]);
+  }, [tenantId, page, search, showInactive, filterType, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -139,6 +141,16 @@ export default function Accounts() {
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
         />
+        <select
+          style={{ ...S.input, width: 'auto' }}
+          value={filterType}
+          onChange={e => { setFilterType(e.target.value); setPage(0); }}
+        >
+          <option value="">All types</option>
+          {Object.keys(TYPE_COLORS).map(t => (
+            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+          ))}
+        </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#555', cursor: 'pointer' }}>
           <input
             type="checkbox"

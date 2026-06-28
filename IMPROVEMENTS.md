@@ -705,4 +705,24 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
       `TenantSummary` (with `posted_amount`) shape tests added (19 -> 22
       frontend tests).
 
+---
+
+## Round 20 (2026-06-28)
+
+- [x] Account-type filter dropdown added to the Accounts list page; the
+      backend `GET .../accounts/page` endpoint already accepted
+      `account_type` as a query parameter -- the frontend now surfaces it
+      with a `<select>` that feeds into the debounced reload key.
+
+- [x] Record-ID filter added to the Audit log page: a debounced UUID text
+      input is forwarded as `record_id` to `GET /audit/page`; the backend
+      `_audit_query` helper and both `GET /audit` and `GET /audit/page`
+      endpoints gain the new `record_id: Optional[uuid.UUID]` parameter.
+
+- [x] `GET /tenants/{id}/accounts/tree` endpoint added: returns the
+      chart-of-accounts as a nested `AccountTreeNode` list (parent nodes
+      contain a `children` array); `AccountTreeNode` Pydantic schema added
+      with forward-ref self-referencing; `accountsTree` path added to
+      `contracts.js` and `getAccountsTree` helper added to `client.js`.
+
 - [x] `/health/db` endpoint confirmed already present -- no change needed.

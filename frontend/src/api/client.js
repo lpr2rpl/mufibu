@@ -93,6 +93,8 @@ export const getAccounts = (tenantId, params) =>
   api.get(API_PATHS.tenants.accounts(tenantId), { params });
 export const getAccountsPage = (tenantId, params) =>
   api.get(API_PATHS.tenants.accountsPage(tenantId), { params });
+export const getAccountsTree = (tenantId, params) =>
+  api.get(API_PATHS.tenants.accountsTree(tenantId), { params });
 export const createAccount = (tenantId, data) =>
   api.post(API_PATHS.tenants.accounts(tenantId), data);
 export const getAccount = (tenantId, accountId) =>

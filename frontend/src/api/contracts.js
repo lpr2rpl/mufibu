@@ -28,6 +28,7 @@ export const API_PATHS = {
     incomeStatement: (tenantId) => `/tenants/${tenantId}/income-statement`,
     balanceSheet: (tenantId) => `/tenants/${tenantId}/balance-sheet`,
     accountLedger: (tenantId, accountId) => `/tenants/${tenantId}/accounts/${accountId}/ledger`,
+    accountsTree: (tenantId) => `/tenants/${tenantId}/accounts/tree`,
   },
   users: {
     list: '/users',

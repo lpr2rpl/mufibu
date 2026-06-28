@@ -24,7 +24,7 @@ from app.database import get_db
 from app.pagination import build_page
 from app.account_rules import cycle_exists
 from app.models import Account, AuditLog, JournalEntry, Tenant
-from app.schemas import AccountCreate, AccountOut, AccountPage, AccountUpdate, JournalEntryOut
+from app.schemas import AccountCreate, AccountOut, AccountPage, AccountTreeNode, AccountUpdate, JournalEntryOut
 
 router = APIRouter(prefix="/tenants/{tenant_id}/accounts", tags=["accounts"])
 
@@ -80,6 +80,40 @@ def list_accounts_page(
             Account.description.ilike(pattern),
         ))
     return build_page(AccountPage, q.order_by(Account.account_number), skip, limit)
+
+
+@router.get("/tree", response_model=List[AccountTreeNode])
+def get_accounts_tree(
+    tenant_id: uuid.UUID,
+    account_type: Optional[str] = Query(None),
+    active_only: bool = Query(True),
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_account_read(current, tenant_id)
+    q = db.query(Account).filter(Account.tenant_id == tenant_id, Account.deleted_at.is_(None))
+    if active_only:
+        q = q.filter(Account.is_active == True)
+    if account_type:
+        q = q.filter(Account.account_type == account_type)
+    all_accts = q.order_by(Account.account_number).all()
+
+    nodes = {a.id: AccountTreeNode(
+        id=a.id,
+        account_number=a.account_number,
+        name=a.name,
+        account_type=a.account_type,
+        description=a.description,
+        is_active=a.is_active,
+    ) for a in all_accts}
+    roots: List[AccountTreeNode] = []
+    for a in all_accts:
+        node = nodes[a.id]
+        if a.parent_account_id and a.parent_account_id in nodes:
+            nodes[a.parent_account_id].children.append(node)
+        else:
+            roots.append(node)
+    return roots
 
 
 @router.post("", response_model=AccountOut, status_code=status.HTTP_201_CREATED)

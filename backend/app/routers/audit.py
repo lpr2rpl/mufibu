@@ -34,6 +34,7 @@ def _audit_query(
     action: Optional[str],
     table_name: Optional[str],
     search: Optional[str] = None,
+    record_id: Optional[uuid.UUID] = None,
 ):
     # Determine access level:
     #   Auditor / PowerAdmin : unrestricted read
@@ -83,6 +84,8 @@ def _audit_query(
             AuditLog.notes.ilike(pattern),
             AuditLog.table_name.ilike(pattern),
         ))
+    if record_id:
+        q = q.filter(AuditLog.record_id == record_id)
 
     return q
 
@@ -93,13 +96,14 @@ def list_audit_log(
     user_id: Optional[uuid.UUID] = Query(None),
     action: Optional[str] = Query(None),
     table_name: Optional[str] = Query(None),
+    record_id: Optional[uuid.UUID] = Query(None),
     search: Optional[str] = Query(None, min_length=1, max_length=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = _audit_query(db, current, tenant_id, user_id, action, table_name, search)
+    q = _audit_query(db, current, tenant_id, user_id, action, table_name, search, record_id)
     return q.order_by(AuditLog.occurred_at.desc()).offset(skip).limit(limit).all()
 
 
@@ -109,11 +113,12 @@ def list_audit_log_page(
     user_id: Optional[uuid.UUID] = Query(None),
     action: Optional[str] = Query(None),
     table_name: Optional[str] = Query(None),
+    record_id: Optional[uuid.UUID] = Query(None),
     search: Optional[str] = Query(None, min_length=1, max_length=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = _audit_query(db, current, tenant_id, user_id, action, table_name, search)
+    q = _audit_query(db, current, tenant_id, user_id, action, table_name, search, record_id)
     return build_page(AuditLogPage, q.order_by(AuditLog.occurred_at.desc()), skip, limit)

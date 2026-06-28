@@ -199,6 +199,20 @@ class AccountUpdate(BaseModel):
     is_active: Optional[bool] = None
     parent_account_id: Optional[uuid.UUID] = None
 
+
+class AccountTreeNode(BaseModel):
+    id: uuid.UUID
+    account_number: str
+    name: str
+    account_type: str
+    description: Optional[str]
+    is_active: bool
+    children: List["AccountTreeNode"] = []
+    model_config = {"from_attributes": True}
+
+AccountTreeNode.model_rebuild()
+
+
 class AccountOut(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
