@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getAuditLogPage } from '../api/client';
@@ -32,9 +33,11 @@ export default function Audit() {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('');
   const [table, setTable] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
-  const queryKey = `${action}::${table}`;
+  const search = useDebouncedValue(searchInput, 400);
+  const queryKey = `${action}::${table}::${search}`;
   const lastQueryRef = useRef(queryKey);
 
   const load = useCallback(async () => {
@@ -49,6 +52,7 @@ export default function Audit() {
       const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (action) params.action = action;
       if (table) params.table_name = table;
+      if (search.trim()) params.search = search.trim();
       const { data } = await getAuditLogPage(params);
       setEntries(data.items || []);
       setTotal(data.total || 0);
@@ -56,7 +60,7 @@ export default function Audit() {
       toast.error(apiError(e, 'Failed to load audit log'));
     }
     setLoading(false);
-  }, [action, table, page, queryKey, reloadToken]);
+  }, [action, table, search, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -69,6 +73,12 @@ export default function Audit() {
       <h2 style={{ color: '#1a237e', marginBottom: 20 }}>Audit Log</h2>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input
+          style={{ ...S.input, width: 200 }}
+          placeholder="Search notes, table..."
+          value={searchInput}
+          onChange={e => { setSearchInput(e.target.value); setPage(0); }}
+        />
         <select value={action} onChange={e => { setAction(e.target.value); setPage(0); }}
           style={{ ...S.input, width: 'auto' }}>
           <option value="">All actions</option>

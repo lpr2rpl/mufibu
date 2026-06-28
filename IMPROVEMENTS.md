@@ -496,3 +496,26 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] `reloadUser` exposed in `AuthContext`.
       The `AuthProvider` now passes `reloadUser` through the context value so
       components can refresh the session after a self-service profile update.
+
+## Round 11 (2026-06-28)
+
+### Search and filtering
+
+- [x] User search on `GET /users/page`.
+      Optional `search` query param added; filters by `username`, `email`, or
+      `full_name` using `ILIKE`.  Users.jsx gains a debounced search input that
+      resets pagination on change.
+
+- [x] Contract path tests for round-10 additions.
+      `contracts.test.js` now asserts the `/auth/me` and `/auth/change-password`
+      paths (introduced in round 10) are correctly formed.
+
+### UX
+
+- [x] `posted_by` tooltip in Journal.
+      The status cell on posted entries shows `Posted by: <uuid-8>` as a
+      `title` attribute so the poster is visible on hover without extra API calls.
+
+- [x] `setup.sh` migration coverage confirmed.
+      `setup.sh` applies migrations via a glob pattern that covers all numbered
+      files including 007-010; no change needed.

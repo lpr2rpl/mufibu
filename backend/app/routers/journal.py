@@ -125,7 +125,7 @@ def list_entries(
 ):
     require_journal_read(current, tenant_id)
     q = _entry_list_query(db, tenant_id, entry_status, from_date, to_date, search)
-    return q.order_by(JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
+    return q.order_by(JournalEntry.entry_date.desc(), JournalEntry.entry_number.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/page", response_model=JournalEntryPage)
@@ -142,7 +142,7 @@ def list_entries_page(
 ):
     require_journal_read(current, tenant_id)
     q = _entry_list_query(db, tenant_id, entry_status, from_date, to_date, search)
-    return build_page(JournalEntryPage, q.order_by(JournalEntry.entry_number.desc()), skip, limit)
+    return build_page(JournalEntryPage, q.order_by(JournalEntry.entry_date.desc(), JournalEntry.entry_number.desc()), skip, limit)
 
 
 @router.post("", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)

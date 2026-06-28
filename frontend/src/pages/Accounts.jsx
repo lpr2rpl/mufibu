@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState';
 import { apiError } from '../utils/apiError';
 import Pagination from '../components/Pagination';
 import { pageOffset } from '../utils/pagination';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 import { card, th, td, input, label, btn } from '../styles/common';
 
 const S = { card, th, td, input, label, btn };
@@ -39,18 +40,31 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [searchInput, setSearchInput] = useState('');
+
+  const search = useDebouncedValue(searchInput, 400);
+  const queryKey = search;
+  const lastQueryRef = useRef(queryKey);
 
   const load = useCallback(async () => {
+    if (lastQueryRef.current !== queryKey && page !== 0) {
+      lastQueryRef.current = queryKey;
+      setPage(0);
+      return;
+    }
+    lastQueryRef.current = queryKey;
     setLoading(true);
     try {
-      const { data } = await getAccountsPage(tenantId, { skip: pageOffset(page, LIMIT), limit: LIMIT, active_only: false });
+      const params = { skip: pageOffset(page, LIMIT), limit: LIMIT, active_only: false };
+      if (search.trim()) params.search = search.trim();
+      const { data } = await getAccountsPage(tenantId, params);
       setAccounts(data.items || []);
       setTotal(data.total || 0);
     } catch (e) {
       toast.error(apiError(e, 'Failed to load accounts'));
     }
     setLoading(false);
-  }, [tenantId, page, reloadToken]);
+  }, [tenantId, page, search, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,11 +114,20 @@ export default function Accounts() {
           </button>
         )}
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <input
+          style={{ ...S.input, width: 260 }}
+          placeholder="Search number, name, description..."
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+        />
+      </div>
+
       <div style={S.card}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
         ) : accounts.length === 0 ? (
-          <EmptyState message="No accounts yet. Create your first account." />
+          <EmptyState message="No accounts match your search." />
         ) : (
           <>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -62,6 +62,7 @@ def list_accounts_page(
     limit: int = Query(200, ge=1, le=1000),
     account_type: Optional[str] = Query(None),
     active_only: bool = Query(True),
+    search: Optional[str] = Query(None, min_length=1, max_length=100),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -71,6 +72,13 @@ def list_accounts_page(
         q = q.filter(Account.is_active == True)
     if account_type:
         q = q.filter(Account.account_type == account_type)
+    if search:
+        pattern = f"%{search.strip()}%"
+        q = q.filter(or_(
+            Account.account_number.ilike(pattern),
+            Account.name.ilike(pattern),
+            Account.description.ilike(pattern),
+        ))
     return build_page(AccountPage, q.order_by(Account.account_number), skip, limit)
 
 

@@ -73,6 +73,7 @@ export default function Journal() {
   const [reloadToken, setReloadToken] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(makeEmptyForm);
+  const [expandedId, setExpandedId] = useState(null);
 
   const search = useDebouncedValue(searchInput, 400);
   const queryKey = `${filterStatus}::${search}::${fromDate}::${toDate}`;
@@ -242,7 +243,11 @@ export default function Journal() {
                 </thead>
                 <tbody>
                   {entries.map(e => (
-                    <tr key={e.id} style={{ background: e.status === 'rejected' ? '#fffafa' : undefined }}>
+                    <React.Fragment key={e.id}>
+                    <tr
+                      style={{ background: e.status === 'rejected' ? '#fffafa' : undefined, cursor: e.lines && e.lines.length > 0 ? 'pointer' : undefined }}
+                      onClick={e.lines && e.lines.length > 0 ? () => setExpandedId(id => id === e.id ? null : e.id) : undefined}
+                    >
                       <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.entry_number}</td>
                       <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{e.entry_date}</td>
                       <td style={{ ...S.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.description}>
@@ -263,7 +268,7 @@ export default function Journal() {
                         }>
                         <Badge label={e.status} variant={e.status} />
                       </td>
-                      <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
+                      <td style={{ ...S.td, whiteSpace: 'nowrap' }} onClick={ev => ev.stopPropagation()}>
                         {canWriteBookings(tenantId) && e.status === 'draft' && e.requires_approval && (
                           <button style={{ ...S.btn('#455a64'), padding: '3px 9px', fontSize: 12, marginRight: 4 }}
                             onClick={() => handleSubmitForApproval(e)}>Submit</button>
@@ -286,6 +291,36 @@ export default function Journal() {
                         )}
                       </td>
                     </tr>
+                    {expandedId === e.id && e.lines && e.lines.length > 0 && (
+                      <tr style={{ background: '#f9f9f9' }}>
+                        <td colSpan={8} style={{ padding: '4px 16px 10px' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                              <tr>
+                                {['Line', 'Account', 'Dr/Cr', 'Amount'].map(h => (
+                                  <th key={h} style={{ ...S.th, fontSize: 11, padding: '4px 8px' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {e.lines.filter(l => !l.deleted_at).map(l => (
+                                <tr key={l.id}>
+                                  <td style={{ ...S.td, padding: '3px 8px' }}>{l.line_number}</td>
+                                  <td style={{ ...S.td, padding: '3px 8px', fontFamily: 'monospace' }}>
+                                    {accMap[l.account_id] || truncateId(l.account_id)}
+                                  </td>
+                                  <td style={{ ...S.td, padding: '3px 8px', textTransform: 'capitalize' }}>{l.debit_credit}</td>
+                                  <td style={{ ...S.td, padding: '3px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                    {Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
