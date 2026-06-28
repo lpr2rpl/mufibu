@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword, updateProfile } from '../api/client';
@@ -40,6 +41,8 @@ export default function Users() {
   const [allRoles, setAllRoles] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userSearchInput, setUserSearchInput] = useState('');
+  const userSearch = useDebouncedValue(userSearchInput, 400);
   const [userPage, setUserPage] = useState(0);
   const [userTotal, setUserTotal] = useState(0);
   const [assignmentPage, setAssignmentPage] = useState(0);
@@ -58,8 +61,10 @@ export default function Users() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const userParams = { skip: pageOffset(userPage, LIMIT), limit: LIMIT };
+      if (userSearch.trim()) userParams.search = userSearch.trim();
       const [u, a, r, t] = await Promise.all([
-        getUsersPage({ skip: pageOffset(userPage, LIMIT), limit: LIMIT }),
+        getUsersPage(userParams),
         getAssignmentsPage({ skip: pageOffset(assignmentPage, LIMIT), limit: LIMIT, active_only: false }),
         getRoles(),
         isPowerAdmin() ? getTenants() : Promise.resolve({ data: [] }),
@@ -74,7 +79,7 @@ export default function Users() {
       toast.error(apiError(e, 'Failed to load'));
     }
     setLoading(false);
-  }, [assignmentPage, isPowerAdmin, reloadToken, userPage]);
+  }, [assignmentPage, isPowerAdmin, reloadToken, userPage, userSearch]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -186,14 +191,22 @@ export default function Users() {
       <div style={{ ...S.card, borderRadius: '0 8px 8px 8px' }}>
         {tab === 'users' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 }}>
-              <button style={S.btn('#455a64')} onClick={() => { setShowProfileModal(true); setProfileForm({ email: currentUser?.email || '', full_name: currentUser?.full_name || '' }); setProfileError(''); }}>
-                Edit Profile
-              </button>
-              <button style={S.btn('#455a64')} onClick={() => { setShowCPModal(true); setCpForm({ current_password: '', new_password: '' }); setCpError(''); }}>
-                Change My Password
-              </button>
-              {isPowerAdmin() && <button style={S.btn()} onClick={() => setShowUserForm(true)}>+ New User</button>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+              <input
+                style={{ ...S.input, width: 220, marginBottom: 0 }}
+                placeholder="Search users..."
+                value={userSearchInput}
+                onChange={e => { setUserSearchInput(e.target.value); setUserPage(0); }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={S.btn('#455a64')} onClick={() => { setShowProfileModal(true); setProfileForm({ email: currentUser?.email || '', full_name: currentUser?.full_name || '' }); setProfileError(''); }}>
+                  Edit Profile
+                </button>
+                <button style={S.btn('#455a64')} onClick={() => { setShowCPModal(true); setCpForm({ current_password: '', new_password: '' }); setCpError(''); }}>
+                  Change My Password
+                </button>
+                {isPowerAdmin() && <button style={S.btn()} onClick={() => setShowUserForm(true)}>+ New User</button>}
+              </div>
             </div>
             {loading ? loadingRow : users.length === 0 ? (
               <EmptyState message="No users found." />

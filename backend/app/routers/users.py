@@ -7,8 +7,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from passlib.context import CryptContext
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, get_current_user
@@ -46,11 +49,19 @@ def list_users(
 def list_users_page(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    search: Optional[str] = Query(None),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     if current.is_power_admin() or current.is_auditor():
         q = db.query(User).filter(User.deleted_at.is_(None))
+        if search:
+            pattern = f"%{search.strip()}%"
+            q = q.filter(or_(
+                User.username.ilike(pattern),
+                User.email.ilike(pattern),
+                User.full_name.ilike(pattern),
+            ))
         return build_page(UserPage, q.order_by(User.created_at.desc()), skip, limit)
 
     items = [current.user] if skip == 0 else []

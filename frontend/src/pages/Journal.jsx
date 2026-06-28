@@ -257,7 +257,9 @@ export default function Journal() {
                         title={
                           e.reversal_entry_id
                             ? ('Reversed by: ' + ((entries.find(r => r.id === e.reversal_entry_id) || {}).entry_number || 'see reversal entry'))
-                            : (e.approval_notes ? ('Approval note: ' + e.approval_notes) : undefined)
+                            : e.status === 'posted' && e.posted_by
+                              ? ('Posted by: ' + e.posted_by.slice(0, 8))
+                              : (e.approval_notes ? ('Approval note: ' + e.approval_notes) : undefined)
                         }>
                         <Badge label={e.status} variant={e.status} />
                       </td>

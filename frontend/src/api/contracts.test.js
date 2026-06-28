@@ -32,6 +32,11 @@ describe('api contract paths', () => {
     expect(API_PATHS.roles.page).toBe('/roles/page');
     expect(API_PATHS.audit.page).toBe('/audit/page');
   });
+
+  test('auth self-service paths match backend route shape', () => {
+    expect(API_PATHS.auth.me).toBe('/auth/me');
+    expect(API_PATHS.auth.changePassword).toBe('/auth/change-password');
+  });
 });
 
 describe('response shape contracts', () => {

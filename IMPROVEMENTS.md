@@ -467,3 +467,32 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] Accounts.jsx edit modal gains a Parent Account selector.
       Active sibling accounts in the same tenant are listed; choosing one sets
       `parent_account_id` on PATCH; the "None" option clears it.
+
+## Round 10 (2026-06-28)
+
+### Auth
+
+- [x] `PATCH /auth/me` self-service profile update endpoint added.
+      Authenticated users can update their own `email` and `full_name`.  Email
+      uniqueness is enforced (HTTP 409 on conflict) and the change is written to
+      the audit log.  `ProfileUpdate` schema added to `schemas.py`.
+
+- [x] Frontend "Edit Profile" modal wired up in Users page.
+      Pre-populated with the current user's email and full_name from `useAuth()`;
+      on success, `reloadUser` refreshes the auth context header.
+
+- [x] `ChangePasswordRequest` model validator: new password must differ from
+      current password.  A `model_validator` raises a 422 if
+      `new_password == current_password`, complementing the existing complexity
+      check.
+
+### UX
+
+- [x] Dashboard per-tenant summary card added.
+      For each tenant the user can read, the Dashboard shows total account count
+      and journal entry counts by status (draft, pending_approval, approved,
+      rejected, posted) via five parallel `limit=1` page requests.
+
+- [x] `reloadUser` exposed in `AuthContext`.
+      The `AuthProvider` now passes `reloadUser` through the context value so
+      components can refresh the session after a self-service profile update.
