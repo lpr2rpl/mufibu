@@ -33,6 +33,13 @@ def lines_balance_error(lines) -> Optional[str]:
     return None
 
 
+def same_account_error(main_id, contra_id) -> Optional[str]:
+    """Return an error message if main and contra accounts are the same, else None."""
+    if main_id == contra_id:
+        return "main_account_id and contra_account_id must differ"
+    return None
+
+
 def can_reverse(entry_status: str, reversed_at=None) -> Optional[str]:
     """Return an error message if the entry cannot be reversed, None if it can.
 

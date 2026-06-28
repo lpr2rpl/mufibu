@@ -28,7 +28,7 @@ from app.auth.policies import (
 )
 from app.database import get_db
 from app.pagination import build_page
-from app.journal_workflow import can_reverse, lines_balance_error, postable_error
+from app.journal_workflow import can_reverse, lines_balance_error, postable_error, same_account_error
 from app.models import Account, AuditLog, JournalEntry, JournalEntryLine, Tenant
 from app.schemas import (
     JournalEntryApprove, JournalEntryCreate, JournalEntryOut,
@@ -159,6 +159,10 @@ def create_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     if not _tenant.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is inactive")
+
+    same_err = same_account_error(body.main_account_id, body.contra_account_id)
+    if same_err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=same_err)
 
     balance_err = lines_balance_error(body.lines)
     if balance_err:
@@ -308,6 +312,10 @@ def update_entry(
         entry.reference = body.reference
     if body.notes is not None:
         entry.notes = body.notes
+
+    same_err = same_account_error(entry.main_account_id, entry.contra_account_id)
+    if same_err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=same_err)
 
     entry.modified_at = datetime.now(timezone.utc)
     entry.modified_by = current.id
@@ -478,7 +486,7 @@ def reverse_entry(
     reversal = JournalEntry(
         tenant_id=tenant_id,
         entry_number=_next_entry_number(db, tenant_id),
-        entry_date=entry.entry_date,
+        entry_date=datetime.now(tz=timezone.utc).date(),
         description=f"Reversal of {entry.entry_number}",
         status="draft",
         requires_approval=False,

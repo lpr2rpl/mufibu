@@ -338,6 +338,24 @@ class TrialBalanceRow(BaseModel):
     net: Decimal
 
 # ------------------------------------------------------------------
+# Income Statement
+# ------------------------------------------------------------------
+
+class IncomeStatementRow(BaseModel):
+    account_id: uuid.UUID
+    account_number: str
+    name: str
+    account_type: str
+    debit_total: Decimal
+    credit_total: Decimal
+    net: Decimal
+
+class IncomeStatementOut(BaseModel):
+    revenue: List[IncomeStatementRow]
+    expense: List[IncomeStatementRow]
+    net_income: Decimal
+
+# ------------------------------------------------------------------
 # Audit Log
 # ------------------------------------------------------------------
 

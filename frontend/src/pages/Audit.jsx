@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getAuditLogPage } from '../api/client';
+import { getAuditLogPage, getTenants } from '../api/client';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import Pagination from '../components/Pagination';
@@ -33,12 +33,31 @@ export default function Audit() {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('');
   const [table, setTable] = useState('');
+  const [tenantFilter, setTenantFilter] = useState('');
+  const [tenantList, setTenantList] = useState([]);
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const search = useDebouncedValue(searchInput, 400);
-  const queryKey = `${action}::${table}::${search}`;
+  const queryKey = `${action}::${table}::${search}::${tenantFilter}`;
   const lastQueryRef = useRef(queryKey);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        if (isPowerAdmin() || isAuditor()) {
+          const { data } = await getTenants();
+          setTenantList(Array.isArray(data) ? data : []);
+        } else {
+          const officerTenantIds = roles
+            .filter(r => r.role === 'Officer' && r.tenant_id)
+            .map(r => ({ id: r.tenant_id, name: r.tenant_id.slice(0, 8) }));
+          setTenantList(officerTenantIds);
+        }
+      } catch { /* non-fatal */ }
+    };
+    load();
+  }, []);
 
   const load = useCallback(async () => {
     if (lastQueryRef.current !== queryKey && page !== 0) {
@@ -52,6 +71,7 @@ export default function Audit() {
       const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
       if (action) params.action = action;
       if (table) params.table_name = table;
+      if (tenantFilter) params.tenant_id = tenantFilter;
       if (search.trim()) params.search = search.trim();
       const { data } = await getAuditLogPage(params);
       setEntries(data.items || []);
@@ -60,7 +80,7 @@ export default function Audit() {
       toast.error(apiError(e, 'Failed to load audit log'));
     }
     setLoading(false);
-  }, [action, table, search, page, queryKey, reloadToken]);
+  }, [action, table, tenantFilter, search, page, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -89,6 +109,13 @@ export default function Audit() {
           <option value="">All tables</option>
           {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+        {tenantList.length > 0 && (
+          <select value={tenantFilter} onChange={e => { setTenantFilter(e.target.value); setPage(0); }}
+            style={{ ...S.input, width: 'auto' }}>
+            <option value="">All tenants</option>
+            {tenantList.map(t => <option key={t.id} value={t.id}>{t.name || t.id.slice(0, 8)}</option>)}
+          </select>
+        )}
         <button onClick={() => setReloadToken((n) => n + 1)} style={S.btn()}>Refresh</button>
       </div>
 

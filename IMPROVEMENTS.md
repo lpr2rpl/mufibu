@@ -623,3 +623,24 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
       A "Load Trial Balance" button fetches and renders the trial balance for
       the selected tenant. Accounts with zero activity are dimmed (opacity 0.4).
       Net is coloured green for positive and red for negative.
+
+---
+
+## Round 16 (2026-06-28)
+
+- [x] Reports.jsx: dedicated /reports page with a Trial Balance section (tenant
+      selector + Load button + styled table). Trial balance moved out of
+      Dashboard.jsx; Dashboard now shows a "View Reports" link card instead.
+
+- [x] Dashboard.jsx: trial balance panel replaced with a "View Reports ->" link
+      card to keep the dashboard summary-focused.
+
+- [x] Journal.jsx: footer row below the entries table showing "{n} entries *
+      Total: {sum}" (count and sum of amounts on the current page). Only shown
+      when entries are present.
+
+- [x] client.js: getUser(userId) added, wiring the existing GET /users/{id}
+      endpoint for PowerAdmin use.
+
+- [x] contracts.test.js: path assertions added for trialBalance and accountLedger;
+      TrialBalanceRow shape test added (19 frontend tests total).

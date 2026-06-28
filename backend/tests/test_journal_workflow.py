@@ -9,13 +9,24 @@ import unittest
 from collections import namedtuple
 from decimal import Decimal
 
-from app.journal_workflow import can_reverse, lines_balance_error, postable_error
+from app.journal_workflow import can_reverse, lines_balance_error, postable_error, same_account_error
 
 Line = namedtuple("Line", ["debit_credit", "amount"])
 
 
 def _d(value):
     return Decimal(str(value))
+
+
+class SameAccountTests(unittest.TestCase):
+    def test_same_account_returns_error(self):
+        import uuid
+        aid = uuid.uuid4()
+        self.assertIsNotNone(same_account_error(aid, aid))
+
+    def test_different_accounts_return_none(self):
+        import uuid
+        self.assertIsNone(same_account_error(uuid.uuid4(), uuid.uuid4()))
 
 
 class CanReverseTests(unittest.TestCase):

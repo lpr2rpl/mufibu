@@ -101,6 +101,8 @@ export const getAccountLedger = (tenantId, accountId, params) =>
   api.get(API_PATHS.tenants.accountLedger(tenantId, accountId), { params });
 export const getTrialBalance = (tenantId) =>
   api.get(API_PATHS.tenants.trialBalance(tenantId));
+export const getIncomeStatement = (tenantId) =>
+  api.get(API_PATHS.tenants.incomeStatement(tenantId));
 
 // Journal
 export const getJournalEntries = (tenantId, params) =>
