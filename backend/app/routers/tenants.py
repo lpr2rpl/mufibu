@@ -124,7 +124,16 @@ def get_tenant_summary(
             JournalEntry.status == s,
             JournalEntry.deleted_at.is_(None),
         ).count()
-    return TenantSummary(total_accounts=total_accounts, entries_by_status=entries_by_status)
+    posted_amount = db.query(func.sum(JournalEntry.amount)).filter(
+        JournalEntry.tenant_id == tenant_id,
+        JournalEntry.status == "posted",
+        JournalEntry.deleted_at.is_(None),
+    ).scalar() or Decimal("0")
+    return TenantSummary(
+        total_accounts=total_accounts,
+        entries_by_status=entries_by_status,
+        posted_amount=posted_amount,
+    )
 
 
 @router.patch("/{tenant_id}", response_model=TenantOut)
@@ -238,6 +247,7 @@ def get_trial_balance(
 def get_income_statement(
     tenant_id: uuid.UUID,
     as_of_date: Optional[date] = Query(None),
+    from_date: Optional[date] = Query(None),
     current: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -257,6 +267,8 @@ def get_income_statement(
         JournalEntry.status == "posted",
         JournalEntry.deleted_at.is_(None),
     ]
+    if from_date:
+        posted_filter.append(JournalEntry.entry_date >= from_date)
     if as_of_date:
         posted_filter.append(JournalEntry.entry_date <= as_of_date)
     revenue_rows, expense_rows = [], []

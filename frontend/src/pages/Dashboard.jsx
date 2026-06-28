@@ -142,6 +142,14 @@ export default function Dashboard() {
                   <div style={{ fontSize: 22, fontWeight: 700, color }}>{summary.entries_by_status[key] ?? 0}</div>
                 </div>
               ))}
+              {summary.posted_amount !== undefined && (
+                <div style={{ borderLeft: '1px solid #eee', paddingLeft: 24 }}>
+                  <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>Total Posted</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1a237e', fontFamily: 'monospace' }}>
+                    {Number(summary.posted_amount).toFixed(2)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );

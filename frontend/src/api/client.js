@@ -101,8 +101,12 @@ export const getAccountLedger = (tenantId, accountId, params) =>
   api.get(API_PATHS.tenants.accountLedger(tenantId, accountId), { params });
 export const getTrialBalance = (tenantId, asOfDate) =>
   api.get(API_PATHS.tenants.trialBalance(tenantId), { params: asOfDate ? { as_of_date: asOfDate } : {} });
-export const getIncomeStatement = (tenantId, asOfDate) =>
-  api.get(API_PATHS.tenants.incomeStatement(tenantId), { params: asOfDate ? { as_of_date: asOfDate } : {} });
+export const getIncomeStatement = (tenantId, asOfDate, fromDate) => {
+  const params = {};
+  if (asOfDate) params.as_of_date = asOfDate;
+  if (fromDate) params.from_date = fromDate;
+  return api.get(API_PATHS.tenants.incomeStatement(tenantId), { params });
+};
 export const getBalanceSheet = (tenantId, asOfDate) =>
   api.get(API_PATHS.tenants.balanceSheet(tenantId), { params: asOfDate ? { as_of_date: asOfDate } : {} });
 

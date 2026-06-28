@@ -13,11 +13,12 @@ const btnStyle = {
   border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
 };
 
-function ReportSection({ title, onLoad, loading, children }) {
+function ReportSection({ title, onLoad, loading, children, extra }) {
   return (
     <div style={S.card}>
       <h3 style={{ margin: '0 0 14px', fontSize: 15, color: '#333' }}>{title}</h3>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+        {extra}
         <button style={btnStyle} onClick={onLoad} disabled={loading}>
           {loading ? 'Loading...' : 'Load'}
         </button>
@@ -43,6 +44,7 @@ export default function Reports() {
   const [tenants, setTenants] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [asOfDate, setAsOfDate] = useState('');
+  const [fromDate, setFromDate] = useState('');
   const [trialBalance, setTrialBalance] = useState(null);
   const [incomeStatement, setIncomeStatement] = useState(null);
   const [balanceSheet, setBalanceSheet] = useState(null);
@@ -90,6 +92,11 @@ export default function Reports() {
     setBalanceSheet(null);
   };
 
+  const handleFromDateChange = (e) => {
+    setFromDate(e.target.value);
+    setIncomeStatement(null);
+  };
+
   const handleLoadTrialBalance = async () => {
     if (!selectedTenant) return;
     setTbLoading(true);
@@ -108,7 +115,7 @@ export default function Reports() {
     setIsLoading(true);
     setIncomeStatement(null);
     try {
-      const { data } = await getIncomeStatement(selectedTenant, asOfDate || undefined);
+      const { data } = await getIncomeStatement(selectedTenant, asOfDate || undefined, fromDate || undefined);
       setIncomeStatement(data);
     } catch {
       toast.error('Failed to load income statement');
@@ -207,7 +214,15 @@ export default function Reports() {
       </ReportSection>
 
       {/* Income Statement */}
-      <ReportSection title="Income Statement" onLoad={handleLoadIncomeStatement} loading={isLoading}>
+      <ReportSection title="Income Statement (P&amp;L)" onLoad={handleLoadIncomeStatement} loading={isLoading}
+        extra={
+          <label style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
+            From:
+            <input type="date" value={fromDate} onChange={handleFromDateChange}
+              style={{ fontSize: 13, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }} />
+          </label>
+        }
+      >
         {incomeStatement && (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>

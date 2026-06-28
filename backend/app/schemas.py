@@ -43,6 +43,7 @@ class TenantUpdate(BaseModel):
 class TenantSummary(BaseModel):
     total_accounts: int
     entries_by_status: dict
+    posted_amount: Decimal = Decimal("0")
 
 class TenantOut(BaseModel):
     id: uuid.UUID

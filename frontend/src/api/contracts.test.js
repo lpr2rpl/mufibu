@@ -21,6 +21,8 @@ describe('api contract paths', () => {
     expect(API_PATHS.tenants.summary('t1')).toBe('/tenants/t1/summary');
     expect(API_PATHS.tenants.detail('t1')).toBe('/tenants/t1');
     expect(API_PATHS.tenants.trialBalance('t1')).toBe('/tenants/t1/trial-balance');
+    expect(API_PATHS.tenants.incomeStatement('t1')).toBe('/tenants/t1/income-statement');
+    expect(API_PATHS.tenants.balanceSheet('t1')).toBe('/tenants/t1/balance-sheet');
     expect(API_PATHS.tenants.accountLedger('t1', 'a1')).toBe('/tenants/t1/accounts/a1/ledger');
   });
 
@@ -103,5 +105,27 @@ describe('response shape contracts', () => {
       account_type: 'asset', debit_total: '500.00', credit_total: '200.00', net: '300.00',
     };
     assertHasFields(row, ['account_id', 'account_number', 'name', 'account_type', 'debit_total', 'credit_total', 'net']);
+  });
+
+  test('IncomeStatementOut shape is correct', () => {
+    const report = { revenue: [], expense: [], net_income: '0.00' };
+    assertHasFields(report, ['revenue', 'expense', 'net_income']);
+  });
+
+  test('BalanceSheetOut shape is correct', () => {
+    const report = {
+      assets: [], liabilities: [], equity: [],
+      total_assets: '0.00', total_liabilities: '0.00', total_equity: '0.00',
+    };
+    assertHasFields(report, ['assets', 'liabilities', 'equity', 'total_assets', 'total_liabilities', 'total_equity']);
+  });
+
+  test('TenantSummary includes posted_amount', () => {
+    const summary = {
+      total_accounts: 5,
+      entries_by_status: { draft: 1, pending_approval: 0, approved: 0, rejected: 0, posted: 4 },
+      posted_amount: '10000.00',
+    };
+    assertHasFields(summary, ['total_accounts', 'entries_by_status', 'posted_amount']);
   });
 });

@@ -665,3 +665,24 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] `Audit.jsx` gains a tenant filter `<select>` backed by the existing
       `tenant_id` query param on the audit page endpoint; PowerAdmin/Auditor
       sees all tenants, other users see only their tenants.
+
+---
+
+## Round 18 (2026-06-28)
+
+- [x] `GET /tenants/{id}/balance-sheet` added: assets/liabilities/equity
+      sub-tables with per-category totals and an accounting-identity summary row
+      (Assets = Liabilities + Equity); `BalanceSheetRow`/`BalanceSheetOut`
+      schemas added.
+
+- [x] `as_of_date` query param added to both `trial-balance` and
+      `income-statement` endpoints for point-in-time financial reporting; all
+      three report endpoints now accept the same upper-bound date filter.
+
+- [x] `Reports.jsx` refactored: shared tenant selector and As-of-date input at
+      the top; `ReportSection` helper component reduces repetition; Balance Sheet
+      added as the third section.
+
+- [x] `getTrialBalance`, `getIncomeStatement`, `getBalanceSheet` in `client.js`
+      updated to pass `as_of_date` as a query param; Reports page clears loaded
+      data when the date or tenant selection changes.
