@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getTenants, getJournalEntriesPage } from '../api/client';
+import { getTenants, getJournalEntriesPage, getAccountsPage } from '../api/client';
 import Spinner from '../components/Spinner';
 import Badge from '../components/Badge';
 import { getTenantIds, truncateId } from '../utils/roles';
@@ -38,6 +38,8 @@ export default function Dashboard() {
   const toast = useToast();
   const [tenants, setTenants] = useState([]);
   const [recentByTenant, setRecentByTenant] = useState({});
+  const [statusCountsByTenant, setStatusCountsByTenant] = useState({});
+  const [accountCountByTenant, setAccountCountByTenant] = useState({});
   const [loading, setLoading] = useState(true);
 
   const tenantIds = getTenantIds(roles);
@@ -63,8 +65,41 @@ export default function Dashboard() {
           )
         ).then(results => {
           const map = {};
-          results.forEach(([tid, data]) => { map[tid] = data; });
+          results.forEach(([tid, items]) => { map[tid] = items; });
           setRecentByTenant(map);
+        })
+      );
+
+      const STATUSES = ['draft', 'pending_approval', 'approved', 'posted', 'rejected'];
+      promises.push(
+        Promise.all(
+          tenantIds.map(tid =>
+            Promise.all(
+              STATUSES.map(s =>
+                getJournalEntriesPage(tid, { limit: 1, skip: 0, status: s })
+                  .then(({ data }) => [s, data.total || 0])
+                  .catch(() => [s, 0])
+              )
+            ).then(pairs => [tid, Object.fromEntries(pairs)])
+          )
+        ).then(results => {
+          const map = {};
+          results.forEach(([tid, counts]) => { map[tid] = counts; });
+          setStatusCountsByTenant(map);
+        })
+      );
+
+      promises.push(
+        Promise.all(
+          tenantIds.map(tid =>
+            getAccountsPage(tid, { limit: 1, skip: 0 })
+              .then(({ data }) => [tid, data.total || 0])
+              .catch(() => [tid, 0])
+          )
+        ).then(results => {
+          const map = {};
+          results.forEach(([tid, count]) => { map[tid] = count; });
+          setAccountCountByTenant(map);
         })
       );
 
@@ -112,6 +147,39 @@ export default function Dashboard() {
           <StatCard label="Recent Entries" value={totalRecent} color="#6a1b9a" sub="Last 5 per tenant" />
         )}
       </div>
+
+      {hasTenantAccess && tenantIds.map(tid => {
+        const counts = statusCountsByTenant[tid];
+        const accCount = accountCountByTenant[tid];
+        const t = tenants.find(x => x.id === tid);
+        const tName = t ? t.name : truncateId(tid);
+        if (!counts) return null;
+        return (
+          <div key={`summary-${tid}`} style={S.card}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#333' }}>
+              Summary &mdash; {tName}
+            </h3>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 14 }}>
+              <div>
+                <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>Accounts</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a237e' }}>{accCount ?? '\u2014'}</div>
+              </div>
+              {[
+                ['Draft', 'draft', '#757575'],
+                ['Pending', 'pending_approval', '#f57c00'],
+                ['Approved', 'approved', '#388e3c'],
+                ['Posted', 'posted', '#1a237e'],
+                ['Rejected', 'rejected', '#c62828'],
+              ].map(([label, key, color]) => (
+                <div key={key}>
+                  <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color }}>{counts[key] ?? 0}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
       {hasTenantAccess && (
         <div style={S.card}>

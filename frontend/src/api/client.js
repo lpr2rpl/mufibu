@@ -62,6 +62,7 @@ export const logout = () => api.post(API_PATHS.auth.logout);
 export const getMe = () => api.get(API_PATHS.auth.me);
 export const refreshTokens = () => api.post(API_PATHS.auth.refresh);
 export const changePassword = (body) => api.post(API_PATHS.auth.changePassword, body);
+export const updateProfile = (data) => api.patch(API_PATHS.auth.me, data);
 
 // Tenants
 export const getTenants = () => api.get(API_PATHS.tenants.list);

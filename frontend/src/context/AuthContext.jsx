@@ -119,7 +119,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, roles, loading,
-      login, logout: doLogout,
+      login, logout: doLogout, reloadUser: loadUser,
       hasGlobalRole, hasTenantRole,
       canReadBookings, canWriteBookings, canApprove,
       canManageRoles, canReadAccounts, canWriteAccounts, canPostJournalEntry,

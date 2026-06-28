@@ -111,6 +111,16 @@ class ChangePasswordRequest(BaseModel):
             raise ValueError("Password must contain: " + ", ".join(errors))
         return v
 
+    @model_validator(mode="after")
+    def passwords_differ(self) -> "ChangePasswordRequest":
+        if self.new_password == self.current_password:
+            raise ValueError("New password must differ from current password")
+        return self
+
+class ProfileUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+
 # ------------------------------------------------------------------
 # Role
 # ------------------------------------------------------------------

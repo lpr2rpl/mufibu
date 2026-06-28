@@ -26,7 +26,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import AuditLog, User
 from app.rls import BYPASS_CONTEXT, build_rls_context, set_rls_context
-from app.schemas import AuthSession, ChangePasswordRequest, LoginRequest, RefreshRequest
+from app.schemas import AuthSession, ChangePasswordRequest, LoginRequest, ProfileUpdate, RefreshRequest, UserOut
 
 
 def _issue_session(response: Response, user: User, roles: list) -> AuthSession:
@@ -201,6 +201,43 @@ def change_password(
     db.commit()
     clear_auth_cookies(response)
     return {"detail": "Password changed. Please log in again."}
+
+
+@router.patch("/me", response_model=UserOut)
+def update_profile(
+    body: ProfileUpdate,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    old_values = {}
+    new_values = {}
+    if body.email is not None and body.email != current.user.email:
+        taken = db.query(User).filter(
+            User.email == body.email,
+            User.id != current.user.id,
+            User.deleted_at.is_(None),
+        ).first()
+        if taken:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
+        old_values["email"] = current.user.email
+        new_values["email"] = body.email
+        current.user.email = body.email
+    if body.full_name is not None and body.full_name != current.user.full_name:
+        old_values["full_name"] = current.user.full_name
+        new_values["full_name"] = body.full_name
+        current.user.full_name = body.full_name
+    if new_values:
+        db.add(AuditLog(
+            user_id=current.user.id,
+            action="UPDATE",
+            table_name="users",
+            record_id=current.user.id,
+            old_values=old_values,
+            new_values=new_values,
+        ))
+        db.commit()
+        db.refresh(current.user)
+    return UserOut.model_validate(current.user)
 
 
 @router.get("/me", response_model=AuthSession)

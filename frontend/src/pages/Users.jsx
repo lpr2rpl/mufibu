@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword } from '../api/client';
+import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword, updateProfile } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -25,13 +25,16 @@ const POWER_ADMIN_ONLY_ROLES = ['Admin', 'Officer'];
 const LIMIT = 25;
 
 export default function Users() {
-  const { isPowerAdmin, roles: myRoles } = useAuth();
+  const { isPowerAdmin, roles: myRoles, user: currentUser, reloadUser } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('users');
   const [confirmRevoke, setConfirmRevoke] = useState(null);
   const [showCPModal, setShowCPModal] = useState(false);
   const [cpForm, setCpForm] = useState({ current_password: '', new_password: '' });
   const [cpError, setCpError] = useState('');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({ email: '', full_name: '' });
+  const [profileError, setProfileError] = useState('');
   const [users, setUsers] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [allRoles, setAllRoles] = useState([]);
@@ -132,6 +135,22 @@ export default function Users() {
     }
   };
 
+  const handleEditProfile = async (e) => {
+    e.preventDefault();
+    setProfileError('');
+    const payload = {};
+    if (profileForm.email && profileForm.email !== currentUser?.email) payload.email = profileForm.email;
+    if (profileForm.full_name !== (currentUser?.full_name || '')) payload.full_name = profileForm.full_name;
+    try {
+      await updateProfile(payload);
+      toast.success('Profile updated.');
+      setShowProfileModal(false);
+      await reloadUser();
+    } catch (err) {
+      setProfileError(apiError(err, 'Failed to update profile'));
+    }
+  };
+
   const handleExtend = async () => {
     try {
       await extendAssignment(extendModal.id, { valid_until: newValidUntil });
@@ -168,6 +187,9 @@ export default function Users() {
         {tab === 'users' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 }}>
+              <button style={S.btn('#455a64')} onClick={() => { setShowProfileModal(true); setProfileForm({ email: currentUser?.email || '', full_name: currentUser?.full_name || '' }); setProfileError(''); }}>
+                Edit Profile
+              </button>
               <button style={S.btn('#455a64')} onClick={() => { setShowCPModal(true); setCpForm({ current_password: '', new_password: '' }); setCpError(''); }}>
                 Change My Password
               </button>
@@ -341,6 +363,28 @@ export default function Users() {
           onConfirm={handleRevoke}
           onCancel={() => setConfirmRevoke(null)}
         />
+      )}
+
+      {showProfileModal && (
+        <Modal title="Edit Profile" onClose={() => setShowProfileModal(false)}>
+          <form onSubmit={handleEditProfile}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={S.label}>Email</label>
+              <input style={S.input} type="email" value={profileForm.email}
+                onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))} required />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={S.label}>Full Name</label>
+              <input style={S.input} type="text" value={profileForm.full_name}
+                onChange={e => setProfileForm(f => ({ ...f, full_name: e.target.value }))} />
+            </div>
+            {profileError && <p style={{ color: '#c62828', fontSize: 13, marginBottom: 12 }}>{profileError}</p>}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowProfileModal(false)} style={S.btn('#888')}>Cancel</button>
+              <button type="submit" style={S.btn()}>Save</button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {showCPModal && (

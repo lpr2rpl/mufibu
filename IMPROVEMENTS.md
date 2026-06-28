@@ -396,6 +396,27 @@ batch.
 - [x] `IMPROVEMENTS.md` Round 6 section added and ASCII7 Policy renumbered to
       section 7 to preserve document ordering.
 
+## Round 9 (2026-06-28)
+
+### UX
+
+- [x] Journal date-range filter UI added.
+      Two `<input type="date">` fields (From / To) added to `Journal.jsx` beside
+      the existing search controls.  They pass `from_date` and `to_date` to
+      `GET /tenants/{id}/journal/page`; changing either resets the page to 0.
+
+- [x] Accounts table gains a "Parent" column.
+      `Accounts.jsx` resolves `parent_account_id` to the parent's `account_number`
+      from the in-page accounts list (no extra API call) and renders it in a new
+      column, falling back to an em-dash for top-level accounts.
+
+- [x] Audit page REVERSE action support confirmed.
+      `REVERSE` added to the Audit.jsx action dropdown and `ACTION_COLORS` map
+      so reversals are displayed with a distinct colour and are filterable.
+
+- [x] Already-implemented items confirmed: deactivated-user guard and
+      audit action/table filtering were already fully in place from prior rounds.
+
 ## 8. ASCII7 Policy
 
 All tracked text artifacts must contain only 7-bit US-ASCII bytes (0x00-0x7F).
