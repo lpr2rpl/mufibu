@@ -325,6 +325,19 @@ class ReversalResponse(BaseModel):
     reversal_entry_number: str
 
 # ------------------------------------------------------------------
+# Trial Balance
+# ------------------------------------------------------------------
+
+class TrialBalanceRow(BaseModel):
+    account_id: uuid.UUID
+    account_number: str
+    name: str
+    account_type: str
+    debit_total: Decimal
+    credit_total: Decimal
+    net: Decimal
+
+# ------------------------------------------------------------------
 # Audit Log
 # ------------------------------------------------------------------
 

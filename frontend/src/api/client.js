@@ -96,6 +96,10 @@ export const createAccount = (tenantId, data) =>
   api.post(API_PATHS.tenants.accounts(tenantId), data);
 export const updateAccount = (tenantId, accountId, data) =>
   api.patch(API_PATHS.tenants.account(tenantId, accountId), data);
+export const getAccountLedger = (tenantId, accountId, params) =>
+  api.get(API_PATHS.tenants.accountLedger(tenantId, accountId), { params });
+export const getTrialBalance = (tenantId) =>
+  api.get(API_PATHS.tenants.trialBalance(tenantId));
 
 // Journal
 export const getJournalEntries = (tenantId, params) =>

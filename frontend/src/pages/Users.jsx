@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword, updateProfile } from '../api/client';
+import { getUsersPage, createUser, getRoles, getAssignmentsPage, assignRole, revokeAssignment, extendAssignment, getTenants, changePassword, updateProfile, updateUser } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -214,7 +214,7 @@ export default function Users() {
               <>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
-                    {['Username', 'Full Name', 'Email', 'Status', 'Created'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                    {['Username', 'Full Name', 'Email', 'Status', 'Created', isPowerAdmin() && 'Actions'].filter(Boolean).map(h => <th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {users.map(u => (
@@ -226,6 +226,23 @@ export default function Users() {
                           <Badge label={u.is_active ? 'Active' : 'Inactive'} variant={u.is_active ? 'active' : 'inactive'} />
                         </td>
                         <td style={{ ...S.td, fontSize: 12, color: '#888' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                        {isPowerAdmin() && (
+                          <td style={S.td}>
+                            <button
+                              disabled={u.id === currentUser?.id}
+                              style={{ ...S.btn(u.is_active ? '#c62828' : '#2e7d32'), padding: '3px 8px', fontSize: 12, opacity: u.id === currentUser?.id ? 0.4 : 1 }}
+                              onClick={async () => {
+                                try {
+                                  await updateUser(u.id, { is_active: !u.is_active });
+                                  toast.success(`User ${u.is_active ? 'deactivated' : 'activated'}.`);
+                                  setReloadToken(n => n + 1);
+                                } catch (e) {
+                                  toast.error(apiError(e, 'Failed to update user'));
+                                }
+                              }}
+                            >{u.is_active ? 'Deactivate' : 'Activate'}</button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

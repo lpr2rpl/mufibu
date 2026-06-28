@@ -563,3 +563,63 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
 - [x] Journal "Clear" button.
       A grey "Clear" button appears when any filter (status, search, from_date,
       to_date) is active; clicking it resets all filters and returns to page 0.
+
+## Round 14 (2026-06-28)
+
+### Tenant Management
+
+- [x] `PATCH /tenants/{id}` endpoint and edit modal in Tenants.jsx.
+      PowerAdmin can rename or update a tenant description. Uniqueness is
+      enforced (409 on name clash) and the change is audit logged.
+
+### Accounts
+
+- [x] `active_only` toggle in Accounts.jsx.
+      Accounts page defaults to showing only active accounts; a "Show inactive"
+      checkbox reveals soft-deactivated accounts (faded rows).
+
+### Journal
+
+- [x] Header-entry expandable view in Journal.jsx.
+      Clicking any row with no split lines now expands a synthetic two-row
+      sub-table showing the implied DR / CR pair from `main_account_id` and
+      `contra_account_id`, consistent with the existing lines display.
+
+### Testing
+
+- [x] `TenantSummary` contract test and `summary` path assertion added to
+      `contracts.test.js` (18 frontend tests total).
+
+## Round 15 (2026-06-27)
+
+### Users
+
+- [x] Activate/Deactivate button per user row (PowerAdmin only).
+      A red "Deactivate" or green "Activate" button appears in an "Actions"
+      column visible only to PowerAdmin. Clicking calls `PATCH /users/{id}`
+      with `{ is_active: ... }`, which already revoked tokens on deactivate.
+      The button is disabled for the current user to prevent self-lockout.
+
+### Accounts
+
+- [x] Account ledger endpoint `GET /tenants/{id}/accounts/{id}/ledger`.
+      Returns up to 100 posted journal entries (header-only) where the account
+      appears as main or contra, ordered by date then entry number descending.
+      Requires Reader permission. Added `JournalEntryOut` import to accounts.py.
+
+- [x] "Ledger" button in Accounts.jsx.
+      Appears alongside "Edit" for all readers. Opens a Modal showing the last
+      50 posted entries for that account: entry number, date, description,
+      amount, status. Empty state shown when no posted entries exist.
+
+### Dashboard
+
+- [x] Trial balance endpoint `GET /tenants/{id}/trial-balance`.
+      Returns a `TrialBalanceRow` per account (non-deleted) with debit_total,
+      credit_total, and net, aggregating both header-level and split-line
+      entries. Requires Reader permission. `TrialBalanceRow` schema added.
+
+- [x] Trial balance table in Dashboard.jsx.
+      A "Load Trial Balance" button fetches and renders the trial balance for
+      the selected tenant. Accounts with zero activity are dimmed (opacity 0.4).
+      Net is coloured green for positive and red for negative.

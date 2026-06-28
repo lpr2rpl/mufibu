@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getAccountsPage, createAccount, updateAccount } from '../api/client';
+import { getAccountsPage, createAccount, updateAccount, getAccountLedger } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -42,6 +42,9 @@ export default function Accounts() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [searchInput, setSearchInput] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [ledgerAcct, setLedgerAcct] = useState(null);
+  const [ledgerEntries, setLedgerEntries] = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const search = useDebouncedValue(searchInput, 400);
   const queryKey = `${search}::${showInactive}`;
@@ -92,6 +95,19 @@ export default function Accounts() {
     } catch (e) {
       toast.error(apiError(e, 'Operation failed'));
     }
+  };
+
+  const openLedger = async (acct) => {
+    setLedgerAcct(acct);
+    setLedgerEntries([]);
+    setLedgerLoading(true);
+    try {
+      const { data } = await getAccountLedger(tenantId, acct.id, { limit: 50 });
+      setLedgerEntries(data);
+    } catch (e) {
+      toast.error(apiError(e, 'Failed to load ledger'));
+    }
+    setLedgerLoading(false);
   };
 
   const openEdit = (acct) => {
@@ -171,7 +187,8 @@ export default function Accounts() {
                       </td>
                       {canWrite && (
                         <td style={S.td}>
-                          <button style={{ ...S.btn('#455a64'), padding: '4px 10px', fontSize: 12 }} onClick={() => openEdit(a)}>Edit</button>
+                          <button style={{ ...S.btn('#455a64'), padding: '4px 10px', fontSize: 12, marginRight: 4 }} onClick={() => openEdit(a)}>Edit</button>
+                          <button style={{ ...S.btn('#37474f'), padding: '4px 10px', fontSize: 12 }} onClick={() => openLedger(a)}>Ledger</button>
                         </td>
                       )}
                     </tr>
@@ -183,6 +200,35 @@ export default function Accounts() {
           </>
         )}
       </div>
+
+      {ledgerAcct && (
+        <Modal title={`Ledger: ${ledgerAcct.account_number} \u2014 ${ledgerAcct.name}`} onClose={() => setLedgerAcct(null)}>
+          {ledgerLoading ? (
+            <div style={{ textAlign: 'center', padding: 24 }}><Spinner /></div>
+          ) : ledgerEntries.length === 0 ? (
+            <p style={{ color: '#888', fontSize: 14 }}>No posted entries for this account.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>
+                {['Entry #', 'Date', 'Description', 'Amount', 'Status'].map(h => (
+                  <th key={h} style={{ ...S.th, fontSize: 12 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {ledgerEntries.map(e => (
+                  <tr key={e.id}>
+                    <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.entry_number}</td>
+                    <td style={{ ...S.td, fontSize: 12 }}>{new Date(e.entry_date).toLocaleDateString()}</td>
+                    <td style={{ ...S.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description}</td>
+                    <td style={{ ...S.td, fontFamily: 'monospace', textAlign: 'right' }}>{Number(e.amount).toFixed(2)}</td>
+                    <td style={{ ...S.td, fontSize: 12 }}>{e.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Modal>
+      )}
 
       {showForm && (
         <Modal title={editAcct ? 'Edit Account' : 'New Account'} onClose={() => { setShowForm(false); setEditAcct(null); }}>
