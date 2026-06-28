@@ -41,9 +41,10 @@ export default function Accounts() {
   const [editAcct, setEditAcct] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [searchInput, setSearchInput] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
 
   const search = useDebouncedValue(searchInput, 400);
-  const queryKey = search;
+  const queryKey = `${search}::${showInactive}`;
   const lastQueryRef = useRef(queryKey);
 
   const load = useCallback(async () => {
@@ -55,7 +56,8 @@ export default function Accounts() {
     lastQueryRef.current = queryKey;
     setLoading(true);
     try {
-      const params = { skip: pageOffset(page, LIMIT), limit: LIMIT, active_only: false };
+      const params = { skip: pageOffset(page, LIMIT), limit: LIMIT };
+      if (showInactive) params.active_only = false;
       if (search.trim()) params.search = search.trim();
       const { data } = await getAccountsPage(tenantId, params);
       setAccounts(data.items || []);
@@ -64,7 +66,7 @@ export default function Accounts() {
       toast.error(apiError(e, 'Failed to load accounts'));
     }
     setLoading(false);
-  }, [tenantId, page, search, queryKey, reloadToken]);
+  }, [tenantId, page, search, showInactive, queryKey, reloadToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -114,13 +116,21 @@ export default function Accounts() {
           </button>
         )}
       </div>
-      <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
         <input
           style={{ ...S.input, width: 260 }}
           placeholder="Search number, name, description..."
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
         />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#555', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={e => { setShowInactive(e.target.checked); setPage(0); }}
+          />
+          Show inactive
+        </label>
       </div>
 
       <div style={S.card}>

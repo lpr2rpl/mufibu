@@ -13,7 +13,7 @@ from app.auth.policies import require_power_admin, require_journal_read
 from app.database import get_db
 from app.pagination import build_page
 from app.models import Account, AuditLog, JournalEntry, Role, Tenant, User, UserRoleAssignment
-from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary
+from app.schemas import TenantCreate, TenantOut, TenantPage, TenantSummary, TenantUpdate
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -118,6 +118,44 @@ def get_tenant_summary(
             JournalEntry.deleted_at.is_(None),
         ).count()
     return TenantSummary(total_accounts=total_accounts, entries_by_status=entries_by_status)
+
+
+@router.patch("/{tenant_id}", response_model=TenantOut)
+def update_tenant(
+    tenant_id: uuid.UUID,
+    body: TenantUpdate,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+    require_power_admin(current)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).first()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    old = {"name": tenant.name, "description": tenant.description}
+    if body.name is not None:
+        clash = db.query(Tenant).filter(
+            Tenant.name == body.name,
+            Tenant.id != tenant_id,
+            Tenant.deleted_at.is_(None),
+        ).first()
+        if clash:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant name already exists")
+        tenant.name = body.name
+    if body.description is not None:
+        tenant.description = body.description
+    db.add(AuditLog(
+        user_id=current.id,
+        tenant_id=tenant_id,
+        action="UPDATE",
+        table_name="tenants",
+        record_id=tenant_id,
+        old_values=old,
+        new_values=body.model_dump(exclude_none=True),
+    ))
+    db.commit()
+    db.refresh(tenant)
+    return tenant
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)

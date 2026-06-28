@@ -36,6 +36,10 @@ class TenantCreate(BaseModel):
     name: str
     description: Optional[str] = None
 
+class TenantUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 class TenantSummary(BaseModel):
     total_accounts: int
     entries_by_status: dict

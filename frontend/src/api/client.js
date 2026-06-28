@@ -70,6 +70,7 @@ export const getTenantSummary = (tenantId) =>
   api.get(API_PATHS.tenants.summary(tenantId));
 export const getTenantsPage = (params) => api.get(API_PATHS.tenants.page, { params });
 export const createTenant = (data) => api.post(API_PATHS.tenants.list, data);
+export const updateTenant = (tenantId, data) => api.patch(API_PATHS.tenants.detail(tenantId), data);
 
 // Users
 export const getUsers = () => api.get(API_PATHS.users.list);

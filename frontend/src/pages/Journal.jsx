@@ -253,8 +253,8 @@ export default function Journal() {
                   {entries.map(e => (
                     <React.Fragment key={e.id}>
                     <tr
-                      style={{ background: e.status === 'rejected' ? '#fffafa' : undefined, cursor: e.lines && e.lines.length > 0 ? 'pointer' : undefined }}
-                      onClick={e.lines && e.lines.length > 0 ? () => setExpandedId(id => id === e.id ? null : e.id) : undefined}
+                      style={{ background: e.status === 'rejected' ? '#fffafa' : undefined, cursor: 'pointer' }}
+                      onClick={() => setExpandedId(id => id === e.id ? null : e.id)}
                     >
                       <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{e.entry_number}</td>
                       <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{e.entry_date}</td>
@@ -299,7 +299,7 @@ export default function Journal() {
                         )}
                       </td>
                     </tr>
-                    {expandedId === e.id && e.lines && e.lines.length > 0 && (
+                    {expandedId === e.id && (
                       <tr style={{ background: '#f9f9f9' }}>
                         <td colSpan={8} style={{ padding: '4px 16px 10px' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -311,18 +311,44 @@ export default function Journal() {
                               </tr>
                             </thead>
                             <tbody>
-                              {e.lines.filter(l => !l.deleted_at).map(l => (
-                                <tr key={l.id}>
-                                  <td style={{ ...S.td, padding: '3px 8px' }}>{l.line_number}</td>
-                                  <td style={{ ...S.td, padding: '3px 8px', fontFamily: 'monospace' }}>
-                                    {accMap[l.account_id] || truncateId(l.account_id)}
-                                  </td>
-                                  <td style={{ ...S.td, padding: '3px 8px', textTransform: 'capitalize' }}>{l.debit_credit}</td>
-                                  <td style={{ ...S.td, padding: '3px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                    {Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                  </td>
-                                </tr>
-                              ))}
+                              {e.lines && e.lines.length > 0
+                                ? e.lines.filter(l => !l.deleted_at).map(l => (
+                                  <tr key={l.id}>
+                                    <td style={{ ...S.td, padding: '3px 8px' }}>{l.line_number}</td>
+                                    <td style={{ ...S.td, padding: '3px 8px', fontFamily: 'monospace' }}>
+                                      {accMap[l.account_id] || truncateId(l.account_id)}
+                                    </td>
+                                    <td style={{ ...S.td, padding: '3px 8px', textTransform: 'capitalize' }}>{l.debit_credit}</td>
+                                    <td style={{ ...S.td, padding: '3px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                      {Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                ))
+                                : (
+                                  <>
+                                    <tr>
+                                      <td style={{ ...S.td, padding: '3px 8px' }}>1</td>
+                                      <td style={{ ...S.td, padding: '3px 8px', fontFamily: 'monospace' }}>
+                                        {accMap[e.main_account_id] || truncateId(e.main_account_id)}
+                                      </td>
+                                      <td style={{ ...S.td, padding: '3px 8px' }}>Debit</td>
+                                      <td style={{ ...S.td, padding: '3px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                        {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      </td>
+                                    </tr>
+                                    <tr>
+                                      <td style={{ ...S.td, padding: '3px 8px' }}>2</td>
+                                      <td style={{ ...S.td, padding: '3px 8px', fontFamily: 'monospace' }}>
+                                        {accMap[e.contra_account_id] || truncateId(e.contra_account_id)}
+                                      </td>
+                                      <td style={{ ...S.td, padding: '3px 8px' }}>Credit</td>
+                                      <td style={{ ...S.td, padding: '3px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                        {Number(e.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      </td>
+                                    </tr>
+                                  </>
+                                )
+                              }
                             </tbody>
                           </table>
                         </td>

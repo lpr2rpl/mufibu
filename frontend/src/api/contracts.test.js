@@ -18,6 +18,8 @@ describe('api contract paths', () => {
     expect(API_PATHS.tenants.journalPage('t1')).toBe('/tenants/t1/journal/page');
     expect(API_PATHS.tenants.journalApprove('t1', 'e1')).toBe('/tenants/t1/journal/e1/approve');
     expect(API_PATHS.tenants.journalReverse('t1', 'e1')).toBe('/tenants/t1/journal/e1/reverse');
+    expect(API_PATHS.tenants.summary('t1')).toBe('/tenants/t1/summary');
+    expect(API_PATHS.tenants.detail('t1')).toBe('/tenants/t1');
   });
 
   test('role assignment paths match backend route shape', () => {
@@ -83,5 +85,13 @@ describe('response shape contracts', () => {
   test('ReversalResponse shape is correct', () => {
     const reversal = { reversal_entry_id: 'e2', reversal_entry_number: '2026000002' };
     assertHasFields(reversal, ['reversal_entry_id', 'reversal_entry_number']);
+  });
+
+  test('TenantSummary shape is correct', () => {
+    const summary = {
+      total_accounts: 5,
+      entries_by_status: { draft: 1, pending_approval: 0, approved: 0, rejected: 0, posted: 4 },
+    };
+    assertHasFields(summary, ['total_accounts', 'entries_by_status']);
   });
 });

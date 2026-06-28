@@ -541,3 +541,25 @@ The guard `scripts/ascii_check.sh` (run by `make ascii-check`, included in
       Optional `search` param added to `GET /audit/page`; filters by
       `notes ILIKE` or `table_name ILIKE`.  Audit.jsx adds a debounced text
       input alongside the existing action/table dropdowns.
+
+## Round 13 (2026-06-28)
+
+### API and Dashboard
+
+- [x] Tenant summary endpoint `GET /tenants/{id}/summary`.
+      Returns `total_accounts` and `entries_by_status` in a single round-trip.
+      `TenantSummary` Pydantic schema added; endpoint requires Reader permission.
+
+- [x] Dashboard refactored from 6 parallel API calls per tenant to 1.
+      The previous implementation made one `limit=1` call per status to read
+      totals; now a single `getTenantSummary()` call replaces all of them.
+
+- [x] Tenant `is_active` guard on `create_account` and `create_entry`.
+      Raises HTTP 403 if the target tenant exists but has `is_active=False`,
+      in addition to the existing `deleted_at` soft-delete guard (HTTP 404).
+
+### UX
+
+- [x] Journal "Clear" button.
+      A grey "Clear" button appears when any filter (status, search, from_date,
+      to_date) is active; clicking it resets all filters and returns to page 0.
