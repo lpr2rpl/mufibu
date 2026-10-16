@@ -5,18 +5,36 @@ interval_secs = 15        # time between check rounds
 fail_window_secs = 120    # SMS only if a check failed during this whole time
 check_timeout_secs = 5
 
+# Every [[check]] takes one target or a list; each target is monitored and
+# alerted on separately (name in the SMS = "<name> <target>").
+
+# --- DNS: several resolvers, each must answer an A query -------------------
 [[check]]
 name = "dns"
 kind = "dns"
-server = "192.0.2.53"     # resolver to test, "ip" or "ip:port"
-query = "example.com"     # must return at least one A record
+servers = ["192.0.2.53", "192.0.2.54", "198.51.100.53:53"]
+query = "example.com"
 
+# --- SMTP: several servers ("host" or "host:port"; default port below) ------
 [[check]]
 name = "smtp"
 kind = "smtp"
-host = "mail.example.com"
+hosts = ["mx1.example.com", "mx2.example.com", "relay.example.com:587"]
 port = 25
 ehlo = "monitor.example.com"
+
+# --- HTTP/HTTPS: status (default 2xx/3xx, no redirect following) -----------
+[[check]]
+name = "web"
+kind = "http"
+urls = ["https://www.example.com/", "http://intranet.example.com/"]
+
+[[check]]
+name = "api"
+kind = "http"
+url = "https://api.example.com/health"
+expect_status = [200]
+contains = '"status":"ok"'   # optional text that must be in the body
 
 [sms]
 url = "https://api.example.com/v1/sms"

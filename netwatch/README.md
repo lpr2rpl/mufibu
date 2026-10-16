@@ -2,12 +2,20 @@ netwatch - DNS/SMTP availability monitor with SMS alerting
 ==========================================================
 
 Runs as a small daemon on a remote Devuan (SysVinit) server. Every
-`interval_secs` it checks:
+`interval_secs` it checks any number of targets of these kinds:
 
 * DNS:  sends an A query over UDP to a resolver; OK = matching reply, RCODE 0,
         at least one answer.
 * SMTP: connects via TCP, expects "220" greeting, sends EHLO, expects "250",
         sends QUIT.
+* HTTP/HTTPS: GET on a URL. OK = status 2xx/3xx (or one of `expect_status`),
+        optionally the body must contain `contains`. TLS certificates are
+        verified. Redirects are not followed.
+
+Multiple targets: each `[[check]]` takes `server`/`servers` (dns),
+`host`/`hosts` (smtp, optional `host:port`) or `url`/`urls` (http). Every
+target is its own check with its own failure timer and its own SMS, named
+"<name> <target>". See packaging/etc/netwatch.toml for an example.
 
 If one check fails in every round for `fail_window_secs` (default 120 s), an
 SMS is sent by POSTing to a REST API (once per outage; optional repeat and a

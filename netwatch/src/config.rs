@@ -12,6 +12,9 @@ pub struct Config {
     #[serde(default, rename = "check")]
     pub checks: Vec<CheckCfg>,
     pub sms: SmsCfg,
+    /// Expanded checks (one per target); filled by `load`.
+    #[serde(skip)]
+    pub probes: Vec<Probe>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,22 +50,39 @@ fn d_timeout() -> u64 {
     5
 }
 
+/// Raw `[[check]]` entry. A check may name one target (`server`, `host`,
+/// `url`) or a list of targets (`servers`, `hosts`, `urls`); every target is
+/// monitored and alerted on separately.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CheckKind {
     Dns {
-        /// Resolver to ask, "ip" or "ip:port" (port defaults to 53).
-        server: String,
+        /// Resolver, "ip" or "ip:port" (port defaults to 53).
+        server: Option<String>,
+        #[serde(default)]
+        servers: Vec<String>,
         /// Name that must resolve (A record).
         query: String,
     },
     Smtp {
-        host: String,
+        host: Option<String>,
+        #[serde(default)]
+        hosts: Vec<String>,
         #[serde(default = "d_smtp_port")]
         port: u16,
         /// Name used in EHLO.
         #[serde(default = "d_ehlo")]
         ehlo: String,
+    },
+    Http {
+        url: Option<String>,
+        #[serde(default)]
+        urls: Vec<String>,
+        /// Accepted status codes; empty = any 2xx or 3xx (redirects are not followed).
+        #[serde(default)]
+        expect_status: Vec<u16>,
+        /// Response body (first 1 MiB) must contain this text.
+        contains: Option<String>,
     },
 }
 
@@ -78,6 +98,68 @@ pub struct CheckCfg {
     pub name: String,
     #[serde(flatten)]
     pub kind: CheckKind,
+}
+
+/// One concrete thing to probe, produced from a `CheckCfg`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Probe {
+    pub name: String,
+    pub spec: ProbeSpec,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProbeSpec {
+    Dns { server: String, query: String },
+    Smtp { host: String, port: u16, ehlo: String },
+    Http { url: String, expect_status: Vec<u16>, contains: Option<String> },
+}
+
+fn targets(single: &Option<String>, list: &[String], what: &str, name: &str) -> Result<Vec<String>, String> {
+    let all: Vec<String> = single.iter().chain(list.iter()).map(|t| t.trim().to_string()).collect();
+    if all.is_empty() || all.iter().any(|t| t.is_empty()) {
+        return Err(format!("check '{}': needs '{}' or a non-empty list", name, what));
+    }
+    Ok(all)
+}
+
+impl CheckCfg {
+    pub fn expand(&self) -> Result<Vec<Probe>, String> {
+        let n = &self.name;
+        let label = |t: &str, many: bool| if many { format!("{} {}", n, t) } else { n.clone() };
+        let mut out = Vec::new();
+        match &self.kind {
+            CheckKind::Dns { server, servers, query } => {
+                let t = targets(server, servers, "server", n)?;
+                for x in &t {
+                    out.push(Probe { name: label(x, t.len() > 1), spec: ProbeSpec::Dns { server: x.clone(), query: query.clone() } });
+                }
+            }
+            CheckKind::Smtp { host, hosts, port, ehlo } => {
+                let t = targets(host, hosts, "host", n)?;
+                for x in &t {
+                    // "host" or "host:port" per target; plain host uses `port`.
+                    let (h, p) = match x.rsplit_once(':') {
+                        Some((h, p)) if !h.contains(':') && p.parse::<u16>().is_ok() => (h.to_string(), p.parse().unwrap()),
+                        _ => (x.clone(), *port),
+                    };
+                    out.push(Probe { name: label(x, t.len() > 1), spec: ProbeSpec::Smtp { host: h, port: p, ehlo: ehlo.clone() } });
+                }
+            }
+            CheckKind::Http { url, urls, expect_status, contains } => {
+                let t = targets(url, urls, "url", n)?;
+                for x in &t {
+                    if !x.starts_with("http://") && !x.starts_with("https://") {
+                        return Err(format!("check '{}': url '{}' must start with http:// or https://", n, x));
+                    }
+                    out.push(Probe {
+                        name: label(x, t.len() > 1),
+                        spec: ProbeSpec::Http { url: x.clone(), expect_status: expect_status.clone(), contains: contains.clone() },
+                    });
+                }
+            }
+        }
+        Ok(out)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -125,12 +207,17 @@ fn d_true() -> bool {
 impl Config {
     pub fn load(path: &str) -> Result<Config, String> {
         let text = fs::read_to_string(path).map_err(|e| format!("cannot read {}: {}", path, e))?;
-        let cfg: Config = toml::from_str(&text).map_err(|e| format!("{}: {}", path, e))?;
+        Config::parse(&text).map_err(|e| format!("{}: {}", path, e))
+    }
+
+    pub fn parse(text: &str) -> Result<Config, String> {
+        let mut cfg: Config = toml::from_str(text).map_err(|e| e.to_string())?;
+        cfg.probes = cfg.checks.iter().map(CheckCfg::expand).collect::<Result<Vec<_>, _>>()?.concat();
         cfg.validate()?;
         Ok(cfg)
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    fn validate(&self) -> Result<(), String> {
         let g = &self.general;
         if g.interval_secs == 0 || g.check_timeout_secs == 0 {
             return Err("interval_secs and check_timeout_secs must be > 0".into());
@@ -138,13 +225,13 @@ impl Config {
         if g.fail_window_secs < g.interval_secs * 2 {
             return Err("fail_window_secs must be at least 2 x interval_secs".into());
         }
-        if self.checks.is_empty() {
+        if self.checks.is_empty() || self.probes.is_empty() {
             return Err("at least one [[check]] is required".into());
         }
         let mut names = std::collections::BTreeSet::new();
-        for c in &self.checks {
-            if c.name.trim().is_empty() || !names.insert(c.name.clone()) {
-                return Err(format!("check name '{}' is empty or duplicated", c.name));
+        for p in &self.probes {
+            if p.name.trim().is_empty() || !names.insert(p.name.clone()) {
+                return Err(format!("check name '{}' is empty or duplicated", p.name));
             }
         }
         if self.sms.recipients.is_empty() {
@@ -167,5 +254,36 @@ impl Config {
     }
     pub fn check_timeout(&self) -> Duration {
         Duration::from_secs(self.general.check_timeout_secs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SMS: &str = "[sms]\nurl='https://x/'\nrecipients=['+1']\n";
+
+    #[test]
+    fn expands_lists_and_single_targets() {
+        let c = Config::parse(&format!(
+            "[[check]]\nname='dns'\nkind='dns'\nservers=['10.0.0.1','10.0.0.2:5353']\nquery='a.b'\n\
+             [[check]]\nname='mx'\nkind='smtp'\nhosts=['m1.x','m2.x:587']\nport=25\n\
+             [[check]]\nname='web'\nkind='http'\nurl='https://x.y/'\nexpect_status=[200]\n{}",
+            SMS
+        ))
+        .unwrap();
+        let names: Vec<_> = c.probes.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["dns 10.0.0.1", "dns 10.0.0.2:5353", "mx m1.x", "mx m2.x:587", "web"]);
+        assert_eq!(c.probes[2].spec, ProbeSpec::Smtp { host: "m1.x".into(), port: 25, ehlo: "netwatch.localdomain".into() });
+        assert!(matches!(&c.probes[3].spec, ProbeSpec::Smtp { port: 587, .. }));
+    }
+
+    #[test]
+    fn rejects_bad_input() {
+        let bad = |body: &str| Config::parse(&format!("{}{}", body, SMS)).is_err();
+        assert!(bad("[[check]]\nname='a'\nkind='http'\n")); // no url
+        assert!(bad("[[check]]\nname='a'\nkind='http'\nurl='ftp://x'\n"));
+        assert!(bad("[[check]]\nname='a'\nkind='dns'\nquery='x'\nservers=[]\n"));
+        assert!(bad("[[check]]\nname='a'\nkind='smtp'\nhost='h'\n[[check]]\nname='a'\nkind='smtp'\nhost='h'\n"));
     }
 }

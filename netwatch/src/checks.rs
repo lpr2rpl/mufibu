@@ -1,15 +1,49 @@
 //! Service checks: DNS (UDP) and SMTP (TCP). Std-only, no external crates.
 
-use crate::config::{CheckCfg, CheckKind};
+use crate::config::{Probe, ProbeSpec};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-pub fn run(cfg: &CheckCfg, timeout: Duration) -> Result<(), String> {
-    match &cfg.kind {
-        CheckKind::Dns { server, query } => check_dns(server, query, timeout),
-        CheckKind::Smtp { host, port, ehlo } => check_smtp(host, *port, ehlo, timeout),
+pub fn run(probe: &Probe, timeout: Duration) -> Result<(), String> {
+    match &probe.spec {
+        ProbeSpec::Dns { server, query } => check_dns(server, query, timeout),
+        ProbeSpec::Smtp { host, port, ehlo } => check_smtp(host, *port, ehlo, timeout),
+        ProbeSpec::Http { url, expect_status, contains } => check_http(url, expect_status, contains.as_deref(), timeout),
     }
+}
+
+// ---------------------------------------------------------------- HTTP(S)
+
+/// GET the URL (TLS certificates are verified for https). Redirects are not
+/// followed: the status of the monitored URL itself is what counts.
+pub fn check_http(url: &str, expect: &[u16], contains: Option<&str>, timeout: Duration) -> Result<(), String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .user_agent(concat!("netwatch/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .into();
+    let mut resp = agent.get(url).call().map_err(|e| format!("{}", e))?;
+    let code = resp.status().as_u16();
+    let good = if expect.is_empty() { (200..400).contains(&code) } else { expect.contains(&code) };
+    if !good {
+        return Err(format!("HTTP status {}", code));
+    }
+    if let Some(needle) = contains {
+        let body = resp
+            .body_mut()
+            .with_config()
+            .limit(1 << 20)
+            .lossy_utf8(true)
+            .read_to_string()
+            .map_err(|e| format!("reading body: {}", e))?;
+        if !body.contains(needle) {
+            return Err(format!("body does not contain '{}'", needle));
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------- DNS
@@ -149,10 +183,54 @@ pub fn check_smtp(host: &str, port: u16, ehlo: &str, timeout: Duration) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
     use std::net::TcpListener;
     use std::thread;
 
     const T: Duration = Duration::from_secs(2);
+
+    fn fake_http(status: &'static str, body: &'static str) -> String {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut got = Vec::new();
+            let mut b = [0u8; 1024];
+            while !got.windows(4).any(|w| w == b"\r\n\r\n") {
+                let n = s.read(&mut b).unwrap();
+                if n == 0 {
+                    break;
+                }
+                got.extend_from_slice(&b[..n]);
+            }
+            let r = format!("HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", status, body.len(), body);
+            s.write_all(r.as_bytes()).unwrap();
+        });
+        format!("http://127.0.0.1:{}/health", port)
+    }
+
+    #[test]
+    fn http_status_rules() {
+        assert!(check_http(&fake_http("200 OK", "fine"), &[], None, T).is_ok());
+        assert!(check_http(&fake_http("302 Found", ""), &[], None, T).is_ok());
+        assert!(check_http(&fake_http("503 Service Unavailable", ""), &[], None, T).is_err());
+        assert!(check_http(&fake_http("404 Not Found", ""), &[404], None, T).is_ok());
+        assert!(check_http(&fake_http("200 OK", ""), &[204], None, T).is_err());
+    }
+
+    #[test]
+    fn http_body_match() {
+        assert!(check_http(&fake_http("200 OK", "status: ALL GOOD"), &[], Some("ALL GOOD"), T).is_ok());
+        assert!(check_http(&fake_http("200 OK", "status: broken"), &[], Some("ALL GOOD"), T).is_err());
+    }
+
+    #[test]
+    fn http_connection_refused() {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let p = l.local_addr().unwrap().port();
+        drop(l);
+        assert!(check_http(&format!("http://127.0.0.1:{}/", p), &[], None, T).is_err());
+    }
 
     #[test]
     fn dns_query_layout() {

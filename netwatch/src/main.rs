@@ -59,7 +59,7 @@ fn fmt_dur(d: Duration) -> String {
 fn run_round(cfg: &Config) -> Vec<Result<(), String>> {
     let timeout = cfg.check_timeout();
     thread::scope(|s| {
-        let hs: Vec<_> = cfg.checks.iter().map(|c| s.spawn(move || checks::run(c, timeout))).collect();
+        let hs: Vec<_> = cfg.probes.iter().map(|c| s.spawn(move || checks::run(c, timeout))).collect();
         hs.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("check panicked".into()))).collect()
     })
 }
@@ -94,7 +94,7 @@ fn main() {
         }
     };
     if mode == "check" {
-        println!("config ok: {} checks, interval {}s, window {}s", cfg.checks.len(), cfg.general.interval_secs, cfg.general.fail_window_secs);
+        println!("config ok: {} checks, interval {}s, window {}s", cfg.probes.len(), cfg.general.interval_secs, cfg.general.fail_window_secs);
         return;
     }
     let host = hostname();
@@ -111,7 +111,7 @@ fn main() {
     }
     if mode == "once" {
         let mut bad = 0;
-        for (c, r) in cfg.checks.iter().zip(run_round(&cfg)) {
+        for (c, r) in cfg.probes.iter().zip(run_round(&cfg)) {
             match r {
                 Ok(()) => println!("OK   {}", c.name),
                 Err(e) => {
@@ -130,15 +130,15 @@ fn daemon(cfg: Config, host: &str) {
     for sig in [signal_hook::consts::SIGTERM, signal_hook::consts::SIGINT] {
         signal_hook::flag::register(sig, Arc::clone(&stop)).expect("signal handler");
     }
-    log!("INFO", "netwatch {} started: {} checks, every {}s, alert after {}s of continuous failure", env!("CARGO_PKG_VERSION"), cfg.checks.len(), cfg.general.interval_secs, cfg.general.fail_window_secs);
+    log!("INFO", "netwatch {} started: {} checks, every {}s, alert after {}s of continuous failure", env!("CARGO_PKG_VERSION"), cfg.probes.len(), cfg.general.interval_secs, cfg.general.fail_window_secs);
 
     let window = cfg.window();
     let repeat = Duration::from_secs(cfg.sms.repeat_secs);
     let notify_recovery = cfg.sms.notify_recovery;
-    let mut states: Vec<CheckState> = cfg.checks.iter().map(|_| CheckState::default()).collect();
-    let mut last_err: Vec<String> = cfg.checks.iter().map(|_| String::new()).collect();
+    let mut states: Vec<CheckState> = cfg.probes.iter().map(|_| CheckState::default()).collect();
+    let mut last_err: Vec<String> = cfg.probes.iter().map(|_| String::new()).collect();
     let interval = cfg.interval();
-    let checks_cfg: Vec<String> = cfg.checks.iter().map(|c| c.name.clone()).collect();
+    let checks_cfg: Vec<String> = cfg.probes.iter().map(|c| c.name.clone()).collect();
     let sms = sms::Sms::new(cfg.sms.clone());
 
     let mut next = Instant::now();
