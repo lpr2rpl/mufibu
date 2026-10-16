@@ -39,7 +39,7 @@ Section: net
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
-Depends: sysvinit-utils, adduser
+Depends: sysvinit-utils, adduser, ca-certificates
 Recommends: logrotate
 Maintainer: netwatch maintainers <root@localhost>
 Description: DNS and SMTP availability monitor with SMS alerting

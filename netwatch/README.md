@@ -7,10 +7,24 @@ Runs as a small daemon on a remote Devuan (SysVinit) server. Every
 * DNS:  sends an A query over UDP to a resolver; OK = matching reply, RCODE 0,
         at least one answer.
 * SMTP: connects via TCP, expects "220" greeting, sends EHLO, expects "250",
-        sends QUIT.
+        sends QUIT. `security` selects the transport: "none" (port 25),
+        "starttls"/"submission" (STARTTLS upgrade, port 587) or "tls"/"smtps"
+        (implicit TLS, port 465). The default port follows the mode.
 * HTTP/HTTPS: GET on a URL. OK = status 2xx/3xx (or one of `expect_status`),
-        optionally the body must contain `contains`. TLS certificates are
-        verified. Redirects are not followed.
+        optionally the body must contain `contains`. Redirects are not followed.
+
+Certificate validation
+----------------------
+For https, smtps and starttls/submission the server certificate chain is
+validated against the system CA bundle (`general.ca_file`, default
+/etc/ssl/certs/ca-certificates.crt, from Devuan's `ca-certificates` package),
+including validity period and host name (SAN) match. A check fails on an
+unknown issuer, incomplete chain, expired or not-yet-valid certificate, or a
+name mismatch; STARTTLS is also refused if the server does not offer it
+(no downgrade to plain text). There is no "insecure" switch. The bundle is
+re-read when it changes, so `update-ca-certificates` needs no restart.
+`netwatch --check-config` reports how many CA certificates were loaded.
+Hosts reached by IP address need an IP SAN in their certificate.
 
 Multiple targets: each `[[check]]` takes `server`/`servers` (dns),
 `host`/`hosts` (smtp, optional `host:port`) or `url`/`urls` (http). Every

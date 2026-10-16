@@ -28,6 +28,10 @@ pub struct General {
     /// Timeout of a single check.
     #[serde(default = "d_timeout")]
     pub check_timeout_secs: u64,
+    /// CA bundle used to validate server certificate chains (https, smtps,
+    /// starttls). Devuan: provided by the ca-certificates package.
+    #[serde(default = "d_ca")]
+    pub ca_file: String,
 }
 
 impl Default for General {
@@ -36,10 +40,14 @@ impl Default for General {
             interval_secs: d_interval(),
             fail_window_secs: d_window(),
             check_timeout_secs: d_timeout(),
+            ca_file: d_ca(),
         }
     }
 }
 
+fn d_ca() -> String {
+    crate::tls::DEFAULT_CA_FILE.to_string()
+}
 fn d_interval() -> u64 {
     15
 }
@@ -68,8 +76,13 @@ pub enum CheckKind {
         host: Option<String>,
         #[serde(default)]
         hosts: Vec<String>,
-        #[serde(default = "d_smtp_port")]
-        port: u16,
+        /// Default: 25 (none), 587 (starttls), 465 (tls).
+        port: Option<u16>,
+        /// "none" (plain), "starttls" (alias "submission": STARTTLS upgrade,
+        /// usually port 587) or "tls" (alias "smtps": implicit TLS, port 465).
+        /// With TLS the certificate chain and host name are verified.
+        #[serde(default)]
+        security: Security,
         /// Name used in EHLO.
         #[serde(default = "d_ehlo")]
         ehlo: String,
@@ -86,9 +99,27 @@ pub enum CheckKind {
     },
 }
 
-fn d_smtp_port() -> u16 {
-    25
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Security {
+    #[default]
+    None,
+    #[serde(alias = "submission")]
+    StartTls,
+    #[serde(alias = "smtps")]
+    Tls,
 }
+
+impl Security {
+    pub fn default_port(self) -> u16 {
+        match self {
+            Security::None => 25,
+            Security::StartTls => 587,
+            Security::Tls => 465,
+        }
+    }
+}
+
 fn d_ehlo() -> String {
     "netwatch.localdomain".to_string()
 }
@@ -110,7 +141,7 @@ pub struct Probe {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProbeSpec {
     Dns { server: String, query: String },
-    Smtp { host: String, port: u16, ehlo: String },
+    Smtp { host: String, port: u16, ehlo: String, security: Security },
     Http { url: String, expect_status: Vec<u16>, contains: Option<String> },
 }
 
@@ -120,6 +151,17 @@ fn targets(single: &Option<String>, list: &[String], what: &str, name: &str) -> 
         return Err(format!("check '{}': needs '{}' or a non-empty list", name, what));
     }
     Ok(all)
+}
+
+impl Probe {
+    /// True if the probe validates a certificate chain.
+    pub fn needs_tls(&self) -> bool {
+        match &self.spec {
+            ProbeSpec::Dns { .. } => false,
+            ProbeSpec::Smtp { security, .. } => *security != Security::None,
+            ProbeSpec::Http { url, .. } => url.starts_with("https://"),
+        }
+    }
 }
 
 impl CheckCfg {
@@ -134,15 +176,15 @@ impl CheckCfg {
                     out.push(Probe { name: label(x, t.len() > 1), spec: ProbeSpec::Dns { server: x.clone(), query: query.clone() } });
                 }
             }
-            CheckKind::Smtp { host, hosts, port, ehlo } => {
+            CheckKind::Smtp { host, hosts, port, ehlo, security } => {
                 let t = targets(host, hosts, "host", n)?;
                 for x in &t {
                     // "host" or "host:port" per target; plain host uses `port`.
                     let (h, p) = match x.rsplit_once(':') {
                         Some((h, p)) if !h.contains(':') && p.parse::<u16>().is_ok() => (h.to_string(), p.parse().unwrap()),
-                        _ => (x.clone(), *port),
+                        _ => (x.clone(), port.unwrap_or_else(|| security.default_port())),
                     };
-                    out.push(Probe { name: label(x, t.len() > 1), spec: ProbeSpec::Smtp { host: h, port: p, ehlo: ehlo.clone() } });
+                    out.push(Probe { name: label(x, t.len() > 1), spec: ProbeSpec::Smtp { host: h, port: p, ehlo: ehlo.clone(), security: *security } });
                 }
             }
             CheckKind::Http { url, urls, expect_status, contains } => {
@@ -274,8 +316,23 @@ mod tests {
         .unwrap();
         let names: Vec<_> = c.probes.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, ["dns 10.0.0.1", "dns 10.0.0.2:5353", "mx m1.x", "mx m2.x:587", "web"]);
-        assert_eq!(c.probes[2].spec, ProbeSpec::Smtp { host: "m1.x".into(), port: 25, ehlo: "netwatch.localdomain".into() });
+        assert_eq!(c.probes[2].spec, ProbeSpec::Smtp { host: "m1.x".into(), port: 25, ehlo: "netwatch.localdomain".into(), security: Security::None });
         assert!(matches!(&c.probes[3].spec, ProbeSpec::Smtp { port: 587, .. }));
+    }
+
+    #[test]
+    fn smtp_security_defaults() {
+        let c = Config::parse(&format!(
+            "[[check]]\nname='s'\nkind='smtp'\nhost='a'\nsecurity='smtps'\n\
+             [[check]]\nname='m'\nkind='smtp'\nhost='b'\nsecurity='submission'\n\
+             [[check]]\nname='x'\nkind='smtp'\nhost='c'\nsecurity='starttls'\nport=2525\n{}",
+            SMS
+        ))
+        .unwrap();
+        let ports: Vec<_> = c.probes.iter().map(|p| match &p.spec { ProbeSpec::Smtp { port, security, .. } => (*port, *security), _ => unreachable!() }).collect();
+        assert_eq!(ports, [(465, Security::Tls), (587, Security::StartTls), (2525, Security::StartTls)]);
+        assert!(c.probes.iter().all(|p| p.needs_tls()));
+        assert!(Config::parse(&format!("[[check]]\nname='s'\nkind='smtp'\nhost='a'\nsecurity='bogus'\n{}", SMS)).is_err());
     }
 
     #[test]

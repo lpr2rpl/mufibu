@@ -5,6 +5,7 @@ mod checks;
 mod config;
 mod sms;
 mod state;
+mod tls;
 
 use config::Config;
 use state::{Action, CheckState};
@@ -56,10 +57,10 @@ fn fmt_dur(d: Duration) -> String {
 }
 
 /// Runs all checks in parallel; returns (ok?, error text) per check.
-fn run_round(cfg: &Config) -> Vec<Result<(), String>> {
+fn run_round(cfg: &Config, tls: &tls::TlsHandle) -> Vec<Result<(), String>> {
     let timeout = cfg.check_timeout();
     thread::scope(|s| {
-        let hs: Vec<_> = cfg.probes.iter().map(|c| s.spawn(move || checks::run(c, timeout))).collect();
+        let hs: Vec<_> = cfg.probes.iter().map(|c| s.spawn(move || checks::run(c, timeout, tls))).collect();
         hs.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("check panicked".into()))).collect()
     })
 }
@@ -95,6 +96,15 @@ fn main() {
     };
     if mode == "check" {
         println!("config ok: {} checks, interval {}s, window {}s", cfg.probes.len(), cfg.general.interval_secs, cfg.general.fail_window_secs);
+        if cfg.probes.iter().any(|p| p.needs_tls()) {
+            match tls::load_ctx(&cfg.general.ca_file) {
+                Ok(c) => println!("trust store ok: {} CA certificates from {}", c.count, cfg.general.ca_file),
+                Err(e) => {
+                    eprintln!("trust store error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         return;
     }
     let host = hostname();
@@ -111,7 +121,8 @@ fn main() {
     }
     if mode == "once" {
         let mut bad = 0;
-        for (c, r) in cfg.probes.iter().zip(run_round(&cfg)) {
+        let tls = tls::Loader::new(&cfg.general.ca_file).get();
+        for (c, r) in cfg.probes.iter().zip(run_round(&cfg, &tls)) {
             match r {
                 Ok(()) => println!("OK   {}", c.name),
                 Err(e) => {
@@ -141,9 +152,20 @@ fn daemon(cfg: Config, host: &str) {
     let checks_cfg: Vec<String> = cfg.probes.iter().map(|c| c.name.clone()).collect();
     let sms = sms::Sms::new(cfg.sms.clone());
 
+    let mut last_tls_err = String::new();
+    let mut loader = tls::Loader::new(&cfg.general.ca_file);
     let mut next = Instant::now();
     while !stop.load(Ordering::Relaxed) {
-        let results = run_round(&cfg);
+        let tls = loader.get();
+        if let Err(e) = &tls {
+            if cfg.probes.iter().any(|p| p.needs_tls()) && *e != last_tls_err {
+                log!("ERROR", "trust store: {}", e);
+                last_tls_err = e.clone();
+            }
+        } else {
+            last_tls_err.clear();
+        }
+        let results = run_round(&cfg, &tls);
         let now = Instant::now();
         for (i, r) in results.into_iter().enumerate() {
             let name = &checks_cfg[i];

@@ -4,6 +4,9 @@
 interval_secs = 15        # time between check rounds
 fail_window_secs = 120    # SMS only if a check failed during this whole time
 check_timeout_secs = 5
+# Certificate chains of https/smtps/starttls servers are validated against
+# this CA bundle (Devuan: package ca-certificates). Host names are verified.
+ca_file = "/etc/ssl/certs/ca-certificates.crt"
 
 # Every [[check]] takes one target or a list; each target is monitored and
 # alerted on separately (name in the SMS = "<name> <target>").
@@ -15,15 +18,30 @@ kind = "dns"
 servers = ["192.0.2.53", "192.0.2.54", "198.51.100.53:53"]
 query = "example.com"
 
-# --- SMTP: several servers ("host" or "host:port"; default port below) ------
+# --- SMTP: several servers ("host" or "host:port") --------------------------
+# security: "none" (plain, port 25), "starttls" / "submission" (STARTTLS
+# upgrade, port 587) or "tls" / "smtps" (implicit TLS, port 465). With TLS the
+# server certificate chain and host name are validated.
 [[check]]
 name = "smtp"
 kind = "smtp"
-hosts = ["mx1.example.com", "mx2.example.com", "relay.example.com:587"]
-port = 25
+hosts = ["mx1.example.com", "mx2.example.com"]
 ehlo = "monitor.example.com"
 
+[[check]]
+name = "submission"
+kind = "smtp"
+hosts = ["mail.example.com", "mail2.example.com:2587"]
+security = "starttls"
+
+[[check]]
+name = "smtps"
+kind = "smtp"
+host = "mail.example.com"
+security = "tls"
+
 # --- HTTP/HTTPS: status (default 2xx/3xx, no redirect following) -----------
+# https:// URLs: certificate chain + host name are validated (no opt-out).
 [[check]]
 name = "web"
 kind = "http"
