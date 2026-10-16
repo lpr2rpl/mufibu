@@ -1,0 +1,35 @@
+# netwatch configuration (ASCII only). Check with: netwatch --check-config
+
+[general]
+interval_secs = 15        # time between check rounds
+fail_window_secs = 120    # SMS only if a check failed during this whole time
+check_timeout_secs = 5
+
+[[check]]
+name = "dns"
+kind = "dns"
+server = "192.0.2.53"     # resolver to test, "ip" or "ip:port"
+query = "example.com"     # must return at least one A record
+
+[[check]]
+name = "smtp"
+kind = "smtp"
+host = "mail.example.com"
+port = 25
+ehlo = "monitor.example.com"
+
+[sms]
+url = "https://api.example.com/v1/sms"
+recipients = ["+41790000000"]
+# Token is sent as "Authorization: Bearer <token>".
+token_file = "/etc/netwatch/sms.token"
+# body_format: "json" or "form"; {to} and {message} are escaped automatically.
+body_format = "json"
+body_template = '{"to":"{to}","message":"{message}"}'
+timeout_secs = 15
+repeat_secs = 0           # 0 = one SMS per outage, else repeat every N seconds
+notify_recovery = true
+
+# Additional HTTP headers, if your provider needs them:
+# [sms.headers]
+# X-Api-Version = "2"

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+if [ "$1" = "purge" ]; then
+    update-rc.d netwatch remove >/dev/null 2>&1 || true
+    rm -f /etc/netwatch/sms.token /var/log/netwatch.log*
+    rmdir /etc/netwatch 2>/dev/null || true
+    deluser --system netwatch >/dev/null 2>&1 || true
+fi
+exit 0

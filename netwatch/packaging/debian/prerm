@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ] || [ "$1" = "deconfigure" ]; then
+    [ -x /etc/init.d/netwatch ] && /etc/init.d/netwatch stop || true
+fi
+exit 0

@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+    getent group netwatch >/dev/null || addgroup --system netwatch
+    getent passwd netwatch >/dev/null || adduser --system --ingroup netwatch \
+        --no-create-home --home /nonexistent --shell /usr/sbin/nologin netwatch
+    chown root:netwatch /etc/netwatch /etc/netwatch/netwatch.toml
+    chmod 750 /etc/netwatch
+    chmod 640 /etc/netwatch/netwatch.toml
+    [ -f /etc/netwatch/sms.token ] || { : > /etc/netwatch/sms.token; }
+    chown root:netwatch /etc/netwatch/sms.token
+    chmod 640 /etc/netwatch/sms.token
+    update-rc.d netwatch defaults >/dev/null 2>&1 || true
+    echo "netwatch: edit /etc/netwatch/netwatch.toml, put the API token into"
+    echo "netwatch: /etc/netwatch/sms.token, then run: /etc/init.d/netwatch start"
+fi
+exit 0

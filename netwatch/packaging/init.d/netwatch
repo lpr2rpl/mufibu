@@ -1,0 +1,67 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          netwatch
+# Required-Start:    $remote_fs $network $syslog
+# Required-Stop:     $remote_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: DNS/SMTP availability monitor with SMS alerting
+### END INIT INFO
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+NAME=netwatch
+DAEMON=/usr/bin/netwatch
+CONFIG=/etc/netwatch/netwatch.toml
+PIDFILE=/var/run/$NAME.pid
+LOGFILE=/var/log/$NAME.log
+RUNUSER=netwatch
+
+[ -x "$DAEMON" ] || exit 0
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+. /lib/lsb/init-functions
+
+do_start() {
+    "$DAEMON" --config "$CONFIG" --check-config >/dev/null 2>&1 || {
+        log_failure_msg "invalid configuration $CONFIG"
+        return 1
+    }
+    touch "$LOGFILE" && chown "$RUNUSER" "$LOGFILE" && chmod 640 "$LOGFILE"
+    start-stop-daemon --start --quiet --background --make-pidfile \
+        --pidfile "$PIDFILE" --chuid "$RUNUSER" --startas /bin/sh -- \
+        -c "exec \"$DAEMON\" --config \"$CONFIG\" >>\"$LOGFILE\" 2>&1"
+}
+
+do_stop() {
+    start-stop-daemon --stop --quiet --retry=TERM/10/KILL/5 --pidfile "$PIDFILE"
+    rc=$?
+    rm -f "$PIDFILE"
+    return $rc
+}
+
+case "$1" in
+start)
+    log_daemon_msg "Starting monitor" "$NAME"
+    do_start
+    log_end_msg $?
+    ;;
+stop)
+    log_daemon_msg "Stopping monitor" "$NAME"
+    do_stop
+    log_end_msg $?
+    ;;
+restart|force-reload)
+    log_daemon_msg "Restarting monitor" "$NAME"
+    do_stop
+    do_start
+    log_end_msg $?
+    ;;
+status)
+    status_of_proc -p "$PIDFILE" "$DAEMON" "$NAME" && exit 0 || exit $?
+    ;;
+*)
+    echo "Usage: /etc/init.d/$NAME {start|stop|restart|force-reload|status}" >&2
+    exit 2
+    ;;
+esac
+exit 0
